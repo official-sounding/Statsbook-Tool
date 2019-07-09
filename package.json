@@ -6,19 +6,27 @@
   "author": "Adam Smasher (Daniel Alt) <dan@fnerk.com>",
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "build": "tsc",
+    "watch": "tsc -w",
+    "lint": "tslint -c tslint.json -p tsconfig.json",
+    "start": "npm run build && electron ./dist/main.js",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
   },
   "devDependencies": {
     "devtron": "^1.4.0",
-    "electron": "^2.0.0",
+    "electron": "^5.0.6",
     "electron-builder": "^20.0.0",
-    "eslint": "^4.19.1"
+    "eslint": "^4.19.1",
+    "typescript": "^3.5.3"
   },
   "dependencies": {
+    "@types/bootstrap": "^4.3.1",
+    "@types/jquery": "^3.3.30",
+    "@types/lodash": "^4.14.136",
+    "@types/mousetrap": "^1.6.3",
     "bootstrap": "^4.0.0",
-    "electron-is-dev": "^0.3.0",
+    "electron-is-dev": "^1.1.0",
     "font-awesome": "^4.7.0",
     "jquery": "^3.3.1",
     "lodash": "^4.17.11",

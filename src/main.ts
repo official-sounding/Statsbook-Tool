@@ -1,24 +1,26 @@
-const {app, BrowserWindow, Menu, dialog} = require('electron')
-const path = require('path')
-const url = require('url')
-const ipc = require('electron').ipcMain
-const isDev = require('electron-is-dev')
+import  {app, BrowserWindow, Menu, dialog, ipcMain as ipc } from 'electron'
+import { join } from 'path'
+import { format as formaturl } from 'url'
+import * as isDev from 'electron-is-dev'
 
-let menu,
-    win,
-    helpWin,
-    aboutWin
+let menu: Menu,
+    win:BrowserWindow,
+    helpWin: BrowserWindow,
+    aboutWin: BrowserWindow
 
 let createWindow = () => {
     win = new BrowserWindow({
         title: 'Statsbook Tool',
-        icon: __dirname + '/build/flamingo-white.png',
+        icon: join(__dirname, '../build/flamingo-white.png'),
         width: 800, 
-        height: 600
+        height: 600,
+        webPreferences: {
+            nodeIntegration: true
+        }
     })
 
-    win.loadURL(url.format({
-        pathname: path.join(__dirname, 'src/index.html'),
+    win.loadURL(formaturl({
+        pathname: join(__dirname, '../src/index.html'),
         protocol: 'file',
         slashes: true
     }))
@@ -55,20 +57,26 @@ let createWindow = () => {
         {
             label: 'File',
             submenu: [
-                {   label: 'Export Roster to CRG XML',
+                {   
+                    id: 'exportXML',
+                    label: 'Export Roster to CRG XML',
                     click: function() {
                         win.webContents.send('export-crg-roster')
                     },
                     enabled: false
                 },
-                {   label: 'Export Roster to CRG JSON (beta)',
+                {   
+                    id: 'exportJSON',
+                    label: 'Export Roster to CRG JSON (beta)',
                     click: function() {
                         win.webContents.send('export-crg-roster-json')
                     },
                     enabled: false
                 },
 
-                {   label: 'Save DerbyJSON',
+                {   
+                    id: 'exportDerbyJSON',
+                    label: 'Save DerbyJSON',
                     click: function() {
                         win.webContents.send('save-derby-json')
                     },
@@ -89,17 +97,14 @@ let createWindow = () => {
                 {
                     label: 'Copy',
                     accelerator: 'CmdOrCtrl+C',
-                    selector: 'Copy'
                 },
                 {
                     label: 'Paste',
                     accelerator: 'CmdOrCtrl+V',
-                    selector: 'paste'
                 },
                 {
                     label: 'Select All',
                     accelerator: 'CmdOrCtrl+A',
-                    selector: 'selectAll'
                 }
             ]
         },
@@ -138,7 +143,7 @@ let openAbout = () => {
     aboutWin = new BrowserWindow({
         parent: win,
         title: 'StatsBook Tool',
-        icon: __dirname + '/build/flamingo-white.png',
+        icon: join(__dirname, '../build/flamingo-white.png'),
         width: 300,
         height: 300,
         x: win.getPosition()[0] + 250,
@@ -147,8 +152,8 @@ let openAbout = () => {
 
     aboutWin.setMenu(null)
 
-    aboutWin.loadURL(url.format({
-        pathname: path.join(__dirname, 'src/aboutst.html'),
+    aboutWin.loadURL(formaturl({
+        pathname: join(__dirname, '../src/aboutst.html'),
         protocol: 'file',
         slashes: true
     }))
@@ -172,15 +177,15 @@ let openHelp = () => {
     helpWin = new BrowserWindow({
         parent: win,
         title: 'Error Descriptions',
-        icon: __dirname + '/build/flamingo-white.png',
+        icon: join(__dirname, '../build/flamingo-white.png'),
         width: 800,
         height: 600,
         x: win.getPosition()[0] + 20,
         y: win.getPosition()[1] + 20
     })
 
-    helpWin.loadURL(url.format({
-        pathname: path.join(__dirname, 'src/help.html'),
+    helpWin.loadURL(formaturl({
+        pathname: join(__dirname, '../src/help.html'),
         protocol: 'file',
         slashes: true
     }))
@@ -209,12 +214,13 @@ app.on('activate',() => {
 
 
 ipc.on('enable-menu-items', () => {
-    menu.items.find(x => x.label == 'File').submenu.items.find(x => x.label == 'Save DerbyJSON').enabled = true
-    menu.items.find(x => x.label == 'File').submenu.items.find(x => x.label == 'Export Roster to CRG XML').enabled = true
-    menu.items.find(x => x.label == 'File').submenu.items.find(x => x.label == 'Export Roster to CRG JSON (beta)').enabled = true
+
+    menu.getMenuItemById('exportXML').enabled = true;
+    menu.getMenuItemById('exportJSON').enabled = true;
+    menu.getMenuItemById('exportDerbyJSON').enabled = true;
 })
 
-ipc.on('error-thrown', (event, msg, url, lineNo, columnNo) => {
+ipc.on('error-thrown', (event: any, msg: any, url: any, lineNo: any, columnNo: any) => {
     dialog.showMessageBox(win, {
         type: 'error',
         title: 'Statsbook Tool',

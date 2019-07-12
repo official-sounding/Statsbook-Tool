@@ -1,16 +1,16 @@
-const uuid = require('uuid/v5')
+import uuid from 'uuid/v5';
 
 // use this guid as the namespace for the skater id
 const appNamespace = 'f291bfb9-74bf-4c5b-af33-902c19a74bea'
 
-function generateSkaterId(teamId, skaterName) {
+function generateSkaterId(teamId: string, skaterName: string) {
     const name = `${teamId}-${skaterName}`
     return uuid(name, appNamespace)
 }
 
-function extractTeamsFromSBData(sbData, teamList) {
+export function extractTeamsFromSBData(sbData: any, teamList: string[]) {
     return teamList.map(function(t) {
-        let teamName
+        let teamName: string;
         
         if(sbData.teams[t].league) {
             teamName = `${sbData.teams[t].league} ${sbData.teams[t].name}`
@@ -36,9 +36,4 @@ function extractTeamsFromSBData(sbData, teamList) {
 
         return team
     })
-}
-
-
-module.exports = {
-    extractTeamsFromSBData
 }

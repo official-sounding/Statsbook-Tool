@@ -4,6 +4,7 @@
       "noImplicitAny": false,
       "sourceMap": true,
       "allowJs": true,
+      "esModuleInterop": true,
       "outDir": "dist",
       "baseUrl": ".",
       "paths": {

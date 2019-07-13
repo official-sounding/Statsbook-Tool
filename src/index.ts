@@ -1,17 +1,23 @@
 import { remote, ipcRenderer as ipc } from  'electron'
 import { read, utils, CellAddress, WorkBook } from 'xlsx'
-import * as moment from 'moment'
-import * as _ from 'lodash'
-import * as mousetrap from 'mousetrap'
+import moment from 'moment'
+import _ from 'lodash'
+import mousetrap from 'mousetrap'
+
+import { download } from './tools/download'
+import { extractTeamsFromSBData } from './crg/crgtools'
+import { IStatsbookTemplate, IErrorSummary } from './types';
+import { WorkbookReader } from './tools/workbookReader';
 
 const { Menu, MenuItem } = remote
 
-
-const download = require('./tools/download')
-
-const { extractTeamsFromSBData } = require('./crg/crgtools')
 const exportXml = require('./crg/exportXml')
 const exportJsonRoster = require('./crg/exportJson')
+
+// Template Files
+let template2018 = require('../assets/2018statsbook.json')
+let template2017 = require('../assets/2017statsbook.json')
+let sbErrorTemplate = require('../assets/sberrors.json')
 
 interface HTMLInputEvent extends Event {
     target: HTMLInputElement & EventTarget;
@@ -34,39 +40,37 @@ window.addEventListener('contextmenu', (e) => {
     menu.popup( { window: remote.getCurrentWindow() })
 }, false)
 
-// Template Files
-let template2018 = require('../assets/2018statsbook.json')
-let template2017 = require('../assets/2017statsbook.json')
-let sbErrorTemplate = require('../assets/sberrors.json')
 
+
+
+const rABS = true; // read XLSX files as binary strings vs. array buffers
 // Globals
 let sbData:any = {},  // derbyJSON formatted statsbook data
-    sbTemplate:any = {},
-    sbErrors:any = {},
+    sbTemplate:IStatsbookTemplate,
+    sbErrors:IErrorSummary,
     penalties:any = {},
     starPasses: any[] | { period: number; jam: number; }[] = [],
     sbFilename = '',
-    sbVersion = '',
-    rABS = true, // read XLSX files as binary strings vs. array buffers
+    sbVersion: string = '', 
     warningData:any = {},
     sbFile = new File([''],'')
 const teamList = ['home','away']
-let anSP = /^sp\*?$/i
-let mySP = /^sp$/i
+const anSP = /^sp\*?$/i
+const mySP = /^sp$/i
 
 // Check for new version
 ipc.on('do-version-check', (event:any, version:any) => {
-    let tagURL = 'https://api.github.com/repos/AdamSmasherDerby/Statsbook-Tool/tags'
-    $.getJSON(tagURL, {_: new Date().getTime()})
-        .done(function (json) {
-            let latestVersion = json[0].name
-            version = 'v' + version
-            if (latestVersion != version) {
+    fetch('https://api.github.com/repos/AdamSmasherDerby/Statsbook-Tool/tags')
+        .then(result =>  result.json())
+        .then(data => {
+            const latestVersion = data[0]
+            const currentVersion = `v${version}`
+            if(latestVersion !== currentVersion) {
                 newVersionWarningBox.innerHTML = `New version available: ${latestVersion} (Current Version: ${version})</BR>` +
-                    '<A HREF="https://github.com/AdamSmasherDerby/Statsbook-Tool/releases/" target="_system">Download Here</a>'
+                '<A HREF="https://github.com/AdamSmasherDerby/Statsbook-Tool/releases/" target="_system">Download Here</a>'
             }
         })
-        .fail(function () {console.log('Update check not performed: no connection')})
+        .catch(reason => console.error(`Cannot check for latest version ${reason}`))
 })
 
 fileSelect.onchange = (e?: HTMLInputEvent) => {
@@ -105,13 +109,13 @@ holder.ondrop = (e) => {
     return false
 }
 
-let makeReader = (sbFile:File) => {
+const makeReader = (sbFile:File) => {
     // Create reader object and load statsbook file
-    let reader = new FileReader()
+    const reader = new FileReader()
     sbFilename = sbFile.name
 
     reader.onload = (e: any) => {
-        readSbData(e.target.result)
+        readSbData(e.target.result, sbFile.name)
     }
 
     // Actually load the file
@@ -123,14 +127,16 @@ let makeReader = (sbFile:File) => {
     }
 }
 
-let readSbData = (data) => {
+let readSbData = (data, filename) => {
     // Read in the statsbook data for an event e
-    if (!rABS) data = new Uint8Array(data)
-    var workbook = read(data, {type: rABS ? 'binary' :'array'})
+    let readType: 'binary' | 'array' = 'binary';
+    if (!rABS) {
+        data = new Uint8Array(data);
+        readType = 'array';
+    } 
+    var workbook = read(data, { type: readType })
 
     // Reinitialize globals
-    sbData = {}
-    sbErrors = JSON.parse(JSON.stringify(sbErrorTemplate))
     penalties = {}
     starPasses = []
     warningData = {
@@ -145,14 +151,13 @@ let readSbData = (data) => {
         lineupThree: []
     }
 
-    // Read Statsbook
-    getVersion(workbook)
-    readIGRF(workbook)
-    for (var i in teamList){
-        readTeam(workbook, teamList[i])
-    }
+    const sbReader = new WorkbookReader(workbook, filename);
+
+    sbErrors = sbReader.errors;
+    sbData = sbReader.data;
+
     updateFileInfo()
-    readOfficials(workbook)
+
     sbData.periods = {'1': {jams: []}, '2': {jams: []}}
     readScores(workbook)
     readPenalties(workbook)
@@ -176,7 +181,7 @@ let readSbData = (data) => {
     createRefreshButton()
 }
 
-let updateFileInfo = () => {
+function updateFileInfo(): void {
     // Update the "File Information Box"
     // Update File Information Box
     fileInfoBox.innerHTML = `<strong>Filename:</strong>  ${sbFilename}<br>`
@@ -199,85 +204,6 @@ let createRefreshButton = () => {
     mousetrap.bind('f5', () => {
         makeReader(sbFile)
     })
-}
-
-let getVersion = (workbook) => {
-    // Determine version of Statsbook file.
-
-    let currentVersion = '2019'
-    let defaultVersion = '2018'
-    let sheet = workbook.Sheets['Read Me']
-    let versionText = (sheet ? sheet['A3'].v : defaultVersion)
-    let versionRe = /(\d){4}/
-    sbVersion = versionRe.exec(versionText)[0]
-
-    switch (sbVersion){
-    case '2019':
-    case '2018':
-        sbTemplate = template2018
-        break
-    case '2017':
-        sbTemplate = template2017
-        break
-    default:
-        sbTemplate = {}
-    }
-
-    // Warning check: outdated statsbook version
-    if (sbVersion != currentVersion){
-        sbErrors.warnings.oldStatsbookVersion.events.push(
-            `This File: ${sbVersion}  Current Version: ${currentVersion} `
-        )
-    }
-}
-
-let readIGRF = (workbook) => {
-    // read IGRF data into the sbData file
-
-    let getJsDateFromExcel = (excelDate) => {
-        // Helper function to convert Excel date to JS format
-        if(!excelDate){return undefined}
-
-        return new Date((excelDate - (25567 + 1))*86400*1000)
-    }
-
-    let getJsTimeFromExcel = (excelTime) => {
-        // Helper function to convert Excel time to JS format
-        if(!excelTime){return undefined}
-
-        let secondsAfterMid = excelTime * 86400
-        let hours = Math.floor(secondsAfterMid/3600)
-        let remainder = secondsAfterMid % 3600
-        let minutes = Math.floor(remainder/60)
-        let seconds = remainder % 60
-        return(`${hours.toString().padStart(2,'0')
-        }:${minutes.toString().padStart(2,'0')
-        }:${seconds.toString().padStart(2,'0')}`)
-    }
-
-    let sheet = workbook.Sheets[sbTemplate.mainSheet]
-    sbData.venue = {}
-    sbData.venue.name = cellVal(sheet,sbTemplate.venue.name)
-    sbData.venue.city = cellVal(sheet,sbTemplate.venue.city)
-    sbData.venue.state = cellVal(sheet,sbTemplate.venue.state)
-    sbData.date = getJsDateFromExcel(cellVal(sheet,sbTemplate.date))
-    sbData.time = getJsTimeFromExcel(cellVal(sheet,sbTemplate.time))
-
-    let props = ['sbData.venue.name',
-        'sbData.venue.city',
-        'sbData.venue.state',
-        'sbData.date',
-        'sbData.time']
-    let propNames = ['Venue Name','Venue City','Venue State','Date','Time']
-
-    for (let p in props){
-        if (!eval(props[p])) {
-            sbErrors.warnings.missingData.events.push(
-                `${propNames[p]}`
-            )
-        }
-    }
-
 }
 
 let readTeam = (workbook: WorkBook,team) => {
@@ -328,60 +254,6 @@ let readTeam = (workbook: WorkBook,team) => {
         sbData.teams[team].persons.push(skaterData)
         penalties[team + ':' + skaterNumber.v] = []
     }
-
-
-}
-
-let readOfficials = (workbook) => {
-// Read in officials' data
-
-    let props = ['firstName','firstRole','firstLeague','firstCert'],
-        sheet = workbook.Sheets[sbTemplate.teams.officials.sheetName],
-        maxNum = sbTemplate.teams.officials.maxNum,
-        nameAddress:CellAddress = { c: null, r: null },
-        roleAddress:CellAddress = { c: null, r: null },
-        leagueAddress:CellAddress = { c: null, r: null },
-        certAddress:CellAddress = { c: null, r: null }
-
-    sbData.teams.officials = {}
-    sbData.teams.officials.persons=[]
-
-    let cells: { [index:string]: CellAddress } = {  };
-    props.forEach(p => {
-        cells[p] = utils.decode_cell(sbTemplate.teams.officials[p])
-    });
-
-    nameAddress.c = cells.firstName.c
-    roleAddress.c = cells.firstRole.c
-    leagueAddress.c = cells.firstLeague.c
-    certAddress.c = cells.firstCert.c
-
-    for (var i = 0; i<maxNum; i++) {
-        nameAddress.r = cells.firstName.r + i
-        roleAddress.r = cells.firstRole.r + i
-        leagueAddress.r = cells.firstLeague.r + i
-        certAddress.r = cells.firstCert.r + i
-
-        // Require presence of both a name and a role to record a line:
-        let offName = sheet[utils.encode_cell(nameAddress)]
-        let offRole = sheet[utils.encode_cell(roleAddress)]
-        if (offRole == undefined || offName == undefined) {continue}
-
-        let offData:any = {name: offName.v, roles: [offRole.v]}
-
-        // Also record league and cert if present
-        let offLeague = sheet[utils.encode_cell(leagueAddress)]
-        if (offLeague != undefined) {
-            offData.league = offLeague.v
-        }
-        let offCert = sheet[utils.encode_cell(certAddress)]
-        if (offCert != undefined) {
-            offData.certifications = [{level: offCert.v}]
-        }
-
-        sbData.teams.officials.persons.push(offData)
-    }
-
 }
 
 let readScores = (workbook:WorkBook) => {
@@ -1838,7 +1710,7 @@ let warningCheck = () => {
 let sbErrorsToTable = () => {
     // Build error report
 
-    let errorTypes = ['scores','lineups','penalties','warnings']
+    const errorTypes = ['scores','lineups','penalties','warnings']
     let typeHeaders = ['Scores', 'Lineups', 'Penalties','Warnings - These should be checked, but may be OK']
     let table = document.createElement('table')
     table.setAttribute('class','table')

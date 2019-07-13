@@ -1,6 +1,6 @@
 // probably should just install downloadjs, but this will do for this PR
 
-function download(data, filename) {
+export function download(data: any, filename: string) {
     const url = URL.createObjectURL( data )
     const link = document.createElement( 'a' )
     link.setAttribute( 'href', url )
@@ -10,5 +10,3 @@ function download(data, filename) {
     e.initMouseEvent( 'click', true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null)
     link.dispatchEvent( e )
 }
-
-module.exports = download

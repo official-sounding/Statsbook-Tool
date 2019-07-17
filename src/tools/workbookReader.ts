@@ -1,14 +1,21 @@
-import { WorkBook, WorkSheet, CellAddress, utils } from "xlsx/types";
+import { WorkBook, WorkSheet, CellAddress, utils } from "xlsx";
 import { IStatsbookTemplate, IErrorSummary, IStatsbookSummary } from "../types";
 import { IDerbyJsonData } from "../derbyJson.types";
 
-import { get, capitalize as cap, range } from 'lodash';
+import { get, capitalize as cap, range, trim } from 'lodash';
 
 const template2018: IStatsbookTemplate = require('~/assets/2018statsbook.json')
 const template2017: IStatsbookTemplate = require('~/assets/2017statsbook.json')
 const errorTemplate: IErrorSummary = require('~/assets/sberrors.json')
 
 const teams = ['home', 'away'];
+const periods = ['1','2'];
+
+const jamNumberValidator = /^(\d+|SP|SP\*)$/i
+const spCheck = /^SP\*?$/i
+const mySPCheck = /^SP$/i
+
+type CellAddressDict = { [key:string]: CellAddress };
 
 export class WorkbookReader {
     static defaultVersion: string = '2018';
@@ -21,6 +28,7 @@ export class WorkbookReader {
     private sbErrors: IErrorSummary;
     private sbData: IDerbyJsonData;
     private penalties: { [playerId:string]: any[] };
+    private starPasses: { period: string; jam: number; }[] = []
 
     constructor(workbook: WorkBook, filename: string) {
         this.workbook = workbook;
@@ -48,6 +56,25 @@ export class WorkbookReader {
     private parseFile(): void {
         this.sbVersion = this.getVersion();
         this.sbTemplate = this.getTemplate();
+
+        this.sbData = {
+            date: null,
+            time: null,
+            venue: {
+                name: null,
+                city: null,
+                state: null
+            },
+            periods: {
+                "1": { jams: []},
+                "2": { jams: []}
+            },
+            teams: {
+                home: null,
+                away: null,
+                officials: { persons: [] }
+            }
+        }
 
         this.getIGRF();
         this.getTeams();
@@ -86,12 +113,12 @@ export class WorkbookReader {
 
     private getIGRF() {
         const sheet = this.workbook.Sheets[this.sbTemplate.mainSheet]
+        const venue = this.sbData.venue;
 
-        this.sbData.venue = {
-            name: this.getExpectedValue(sheet, 'venue.name', 'Venue Name'),
-            city: this.getExpectedValue(sheet, 'venue.city', 'Venue City'),
-            state: this.getExpectedValue(sheet, 'venue.state', 'Venue State')
-        }
+        venue.name = this.getExpectedValue(sheet, 'venue.name', 'Venue Name')
+        venue.city = this.getExpectedValue(sheet, 'venue.city', 'Venue City')
+        venue.state = this.getExpectedValue(sheet, 'venue.state', 'Venue State')
+
 
         const excelDate = this.getExpectedValue(sheet, 'date', 'Date')
         const excelTime = this.getExpectedValue(sheet, 'time', 'Time')
@@ -101,13 +128,6 @@ export class WorkbookReader {
     }
 
     private getTeams() {
-
-        this.sbData.teams = {
-            home: null,
-            away: null,
-            officials: { persons: [] }
-        };
-
         teams.forEach(team => {
             const teamTemplate = this.sbTemplate.teams[team];
             const sheet = this.workbook.Sheets[teamTemplate.sheetName]
@@ -198,6 +218,61 @@ export class WorkbookReader {
         })
     }
 
+    private getScores() {
+        const maxJams = this.sbTemplate.score.maxJams
+        const sheet = this.workbook.Sheets[this.sbTemplate.score.sheetName]
+        const tab = 'score'
+
+        const fields = ['firstJamNumber','firstJammerNumber','firstLost','firstLead',
+        'firstCall','firstInj','firstNp','firstTrip','lastTrip'];
+
+        periods.forEach(period => {
+            teams.forEach(team => {
+                const cells = initializeFirstRow(this.sbTemplate, tab, team, period, fields)
+                const maxTrips = cells.lastTrip.c - cells.firstTrip.c
+                
+                let skaterRef:string = '';
+
+                range(0, maxJams).forEach(jam => {
+                    let starPass = false
+                    let blankTrip = false
+                    let isLost = false
+                    let isLead = false
+
+                    const rowCells = cellsForRow(jam, cells);
+
+                    const jamNumber = trim(cellVal(sheet,rowCells.jamNumber))
+                    const skaterNumber = trim(cellVal(sheet, rowCells.jammerNumber));
+
+                    
+                    if(!jamNumber) {
+                        return;
+                    }
+
+                    if(!jamNumberValidator.test(jamNumber)) {
+                        throw `Invalid Jam Number in cell ${rowCells.jamNumber}: ${jamNumber}`
+                    }
+
+                    if(spCheck.test(jamNumber)) {
+                        starPass = true
+                        if (mySPCheck.test(jamNumber)) {
+                            // this pushes an event for the prior jammer
+                            this.sbData.periods[period].jams[jam -1].events.push(
+                            {
+                                event: 'star pass',
+                                skater: skaterRef
+                            })
+                        }
+                        this.starPasses.push({period: period, jam: jam})
+                    }
+
+
+
+                });
+            })
+        })
+    }
+
 
     private getExpectedValue(sheet: WorkSheet, field: string, longName: string = null) {
         const address: string = get(this.sbTemplate, field);
@@ -210,6 +285,30 @@ export class WorkbookReader {
     }
 
 
+}
+
+function initializeFirstRow(template:IStatsbookTemplate, tab: string, team: string, period: string, fields: string[]): CellAddressDict
+{
+    const result:CellAddressDict = {};
+
+    fields.reduce((prev, curr) => {
+        prev[curr] = utils.decode_cell(template[tab][team][period][curr])
+        return prev;
+    }, result);
+
+    return result;
+}
+
+function cellsForRow(idx: number, firstCells: CellAddressDict): { [key:string]: string }
+{
+    const result: { [key:string]: string } = {};
+    Object.keys(firstCells).reduce((prev, curr) => {
+        const key = curr.replace('first','');
+        prev[key] = getAddressOfRow(idx, firstCells[curr])
+        return prev
+    }, result)
+
+    return result
 }
 
 function getAddressOfRow(idx: number, firstCell: CellAddress): string {

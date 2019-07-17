@@ -7,6 +7,28 @@ export interface IDerbyJsonData {
         away: IDerbyJsonTeam,
         officials: IDerbyJsonOfficialsTeam
     }
+    periods: {
+        "1": IDerbyJsonPeriod,
+        "2": IDerbyJsonPeriod
+    }
+}
+
+export interface IDerbyJsonPeriod {
+    jams: IDerbyJsonJam[]
+}
+
+export interface IDerbyJsonJam {
+    events: IDerbyJsonEvent[],
+}
+
+export interface IDerbyJsonEvent {
+    event: string,
+    skater: IDerbyJsonSkaterRef,
+    position: string,
+}
+
+export interface IDerbyJsonSkaterRef {
+
 }
 
 export interface IDerbyJsonVenue {

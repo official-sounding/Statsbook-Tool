@@ -14,11 +14,6 @@ const { Menu, MenuItem } = remote
 const exportXml = require('./crg/exportXml')
 const exportJsonRoster = require('./crg/exportJson')
 
-// Template Files
-let template2018 = require('../assets/2018statsbook.json')
-let template2017 = require('../assets/2017statsbook.json')
-let sbErrorTemplate = require('../assets/sberrors.json')
-
 interface HTMLInputEvent extends Event {
     target: HTMLInputElement & EventTarget;
 }
@@ -204,56 +199,6 @@ let createRefreshButton = () => {
     mousetrap.bind('f5', () => {
         makeReader(sbFile)
     })
-}
-
-let readTeam = (workbook: WorkBook,team) => {
-// team should be "home" or "away"
-    let name_address = {c:0,r:0},
-        num_address = {c:0,r:0},
-        firstNameAddress:CellAddress,
-        firstNumAddress:CellAddress,
-        skaterNameObject:{ v:string },
-        skaterName:string,
-        skaterNumber:{ v:string },
-        skaterData = {},
-        sheet = workbook.Sheets[sbTemplate.teams[team].sheetName]
-
-
-    // Extract general team data
-    if (!sbData.hasOwnProperty('teams')){sbData.teams = {}}
-    sbData.teams[team] = {}
-    sbData.teams[team].league = cellVal(sheet,sbTemplate.teams[team].league)
-    sbData.teams[team].name = cellVal(sheet,sbTemplate.teams[team].name)
-    sbData.teams[team].color = cellVal(sheet,sbTemplate.teams[team].color)
-
-    if(!sbData.teams[team].color){
-        sbErrors.warnings.missingData.events.push(
-            `Missing color for ${ucFirst(team)} team.`
-        )
-    }
-
-    // Extract skater data
-    firstNameAddress = utils.decode_cell(sbTemplate.teams[team].firstName)
-    firstNumAddress = utils.decode_cell(sbTemplate.teams[team].firstNumber)
-    name_address.c = firstNameAddress.c
-    num_address.c = firstNumAddress.c
-    let maxNum = sbTemplate.teams[team].maxNum
-    sbData.teams[team].persons=[]
-
-    for (var i = 0; i<maxNum; i++) {
-        // For each skater, read in name and number, add to sbData
-        name_address.r = firstNameAddress.r + i
-        num_address.r = firstNumAddress.r + i
-
-        skaterNumber = sheet[utils.encode_cell(num_address)]
-        if (skaterNumber == undefined || skaterNumber.v == undefined) {continue}
-
-        skaterNameObject = sheet[utils.encode_cell(name_address)]
-        skaterName = (_.get(skaterNameObject,'v') == undefined ? '' : skaterNameObject.v)
-        skaterData = {name: skaterName, number: skaterNumber.v}
-        sbData.teams[team].persons.push(skaterData)
-        penalties[team + ':' + skaterNumber.v] = []
-    }
 }
 
 let readScores = (workbook:WorkBook) => {

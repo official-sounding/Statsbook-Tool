@@ -1,4 +1,5 @@
-export interface IStatsbookTemplate {
+
+declare interface IStatsbookTemplate {
     "version": string,
     "mainSheet": string,
     "venue": {
@@ -175,20 +176,20 @@ export interface IStatsbookTemplate {
     }
 }
 
-export interface IErrorDetails {
+declare interface IErrorDetails {
     "description": string,
     "events": string[],
     "long": string
-};
+}
 
-export interface IErrorSummary {
+declare interface IErrorSummary {
     scores: { [key:string]: IErrorDetails },
     penalties: { [key:string]: IErrorDetails },
     lineups: { [key:string]: IErrorDetails },
     warnings: { [key:string]: IErrorDetails }
 }
 
-export interface IStatsbookSummary {
+declare interface IStatsbookSummary {
     version: string,
     filename: string
 }

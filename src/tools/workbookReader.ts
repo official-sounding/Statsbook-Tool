@@ -1,34 +1,23 @@
-import { WorkBook, WorkSheet, CellAddress, utils } from "xlsx";
-import { IStatsbookTemplate, IErrorSummary, IStatsbookSummary } from "../types";
-import { IDerbyJsonData } from "../derbyJson.types";
+import { capitalize as cap, get, range, trim } from 'lodash';
+import { CellAddress, utils, WorkBook, WorkSheet } from 'xlsx';
+import { ScoreReader } from './scoreReader';
+import { CellAddressDict, cellsForRow, cellVal, getAddressOfRow, periods, teams } from './utils';
 
-import { get, capitalize as cap, range, trim } from 'lodash';
-
-const template2018: IStatsbookTemplate = require('~/assets/2018statsbook.json')
-const template2017: IStatsbookTemplate = require('~/assets/2017statsbook.json')
-const errorTemplate: IErrorSummary = require('~/assets/sberrors.json')
-
-const teams = ['home', 'away'];
-const periods = ['1','2'];
-
-const jamNumberValidator = /^(\d+|SP|SP\*)$/i
-const spCheck = /^SP\*?$/i
-const mySPCheck = /^SP$/i
-
-type CellAddressDict = { [key:string]: CellAddress };
+import template2017 from '../../assets/2017statsbook.json';
+import template2018 from '../../assets/2018statsbook.json';
+import errorTemplate from '../../assets/sberrors.json';
 
 export class WorkbookReader {
-    static defaultVersion: string = '2018';
-    static currentVersion: string = '2019';
+    public static defaultVersion: string = '2018';
+    public static currentVersion: string = '2019';
 
     private workbook: WorkBook;
     private sbVersion: string;
     private sbFilename: string;
     private sbTemplate: IStatsbookTemplate;
     private sbErrors: IErrorSummary;
-    private sbData: IDerbyJsonData;
-    private penalties: { [playerId:string]: any[] };
-    private starPasses: { period: string; jam: number; }[] = []
+    private sbData: DerbyJson.IGame;
+    private penalties: { [playerId: string]: any[] };
 
     constructor(workbook: WorkBook, filename: string) {
         this.workbook = workbook;
@@ -40,8 +29,8 @@ export class WorkbookReader {
 
     get summary(): IStatsbookSummary {
         return {
-            version: this.sbVersion,
             filename: this.sbFilename,
+            version: this.sbVersion,
         }
     }
 
@@ -49,7 +38,7 @@ export class WorkbookReader {
         return JSON.parse(JSON.stringify(this.sbErrors))
     }
 
-    get data(): IDerbyJsonData {
+    get data(): DerbyJson.IGame {
         return JSON.parse(JSON.stringify(this.sbData))
     }
 
@@ -58,31 +47,39 @@ export class WorkbookReader {
         this.sbTemplate = this.getTemplate();
 
         this.sbData = {
+            version: 'v0.3',
+            type: 'game',
+            metadata: {
+                producer: 'Statsbook-Tool',
+                date: new Date(),
+            },
             date: null,
             time: null,
             venue: {
                 name: null,
                 city: null,
-                state: null
+                state: null,
             },
             periods: {
-                "1": { jams: []},
-                "2": { jams: []}
+                1: { jams: []},
+                2: { jams: []},
             },
             teams: {
                 home: null,
                 away: null,
-                officials: { persons: [] }
-            }
+                officials: { persons: [] },
+            },
         }
 
         this.getIGRF();
         this.getTeams();
+        this.getScores();
+
     }
 
     private getVersion(): string {
         const sheet = this.workbook.Sheets['Read Me']
-        const versionText = (sheet ? sheet['A3'].v : WorkbookReader.defaultVersion)
+        const versionText = (sheet ? sheet.A3.v : WorkbookReader.defaultVersion)
         const versionRe = /(\d){4}/
         return versionRe.exec(versionText)[0];
     }
@@ -90,9 +87,9 @@ export class WorkbookReader {
     private getTemplate(): IStatsbookTemplate {
         let result: IStatsbookTemplate;
 
-        if (this.sbVersion != WorkbookReader.currentVersion) {
+        if (this.sbVersion !== WorkbookReader.currentVersion) {
             this.sbErrors.warnings.oldStatsbookVersion.events.push(
-                `This File: ${this.sbVersion}  Current Version: ${WorkbookReader.currentVersion} `
+                `This File: ${this.sbVersion}  Current Version: ${WorkbookReader.currentVersion} `,
             )
         }
 
@@ -105,7 +102,7 @@ export class WorkbookReader {
                 result = template2017
                 break
             default:
-                throw `Unable to Load Template for year ${this.sbVersion}`
+                throw new Error(`Unable to Load Template for year ${this.sbVersion}`)
         }
 
         return result;
@@ -119,7 +116,6 @@ export class WorkbookReader {
         venue.city = this.getExpectedValue(sheet, 'venue.city', 'Venue City')
         venue.state = this.getExpectedValue(sheet, 'venue.state', 'Venue State')
 
-
         const excelDate = this.getExpectedValue(sheet, 'date', 'Date')
         const excelTime = this.getExpectedValue(sheet, 'time', 'Time')
 
@@ -128,7 +124,7 @@ export class WorkbookReader {
     }
 
     private getTeams() {
-        teams.forEach(team => {
+        teams.forEach((team) => {
             const teamTemplate = this.sbTemplate.teams[team];
             const sheet = this.workbook.Sheets[teamTemplate.sheetName]
 
@@ -136,16 +132,14 @@ export class WorkbookReader {
                 leauge: cellVal(sheet, teamTemplate.league),
                 name: cellVal(sheet, teamTemplate.name),
                 color: cellVal(sheet, teamTemplate.color),
-                persons: []
+                persons: [],
             };
 
             const teamData = this.sbData.teams[team];
 
-
-
             if (!teamData.color) {
                 this.sbErrors.warnings.missingData.events.push(
-                    `Missing color for ${cap(team)} team.`
+                    `Missing color for ${cap(team)} team.`,
                 )
             }
 
@@ -153,20 +147,20 @@ export class WorkbookReader {
             const firstNameRC = utils.decode_cell(teamTemplate.firstName)
             const firstNumRC = utils.decode_cell(teamTemplate.firstNumber)
 
-            range(0, teamTemplate.maxNum).forEach(i => {
+            range(0, teamTemplate.maxNum).forEach((i) => {
                 const nameAddr = getAddressOfRow(i, firstNameRC)
                 const numAddr = getAddressOfRow(i, firstNumRC)
 
                 const skaterNumber = cellVal(sheet, numAddr)
                 const skaterName = cellVal(sheet, nameAddr)
 
-                if(!skaterNumber) {
+                if (!skaterNumber) {
                     return
                 }
 
                 teamData.persons.push({
                     name: skaterName,
-                    number: skaterNumber
+                    number: skaterNumber,
                 })
 
                 this.penalties[`${team}:${skaterNumber}`] = []
@@ -182,14 +176,14 @@ export class WorkbookReader {
         const sheet = this.workbook.Sheets[this.sbTemplate.teams.officials.sheetName];
         const template = this.sbTemplate.teams.officials;
 
-        const cells: { [index:string]: CellAddress } = { 
+        const cells: { [index: string]: CellAddress } = {
             firstName: utils.decode_cell(template.firstName),
             firstRole: utils.decode_cell(template.firstRole),
             firstLeague: utils.decode_cell(template.firstLeague),
-            firstCert: utils.decode_cell(template.firstCert)
+            firstCert: utils.decode_cell(template.firstCert),
         };
 
-        range(0, template.maxNum).forEach(idx => {
+        range(0, template.maxNum).forEach((idx) => {
             const nameAddr = getAddressOfRow(idx, cells.firstName)
             const roleAddr = getAddressOfRow(idx, cells.firstRole)
             const leagueAddr = getAddressOfRow(idx, cells.firstLeague)
@@ -200,16 +194,16 @@ export class WorkbookReader {
             const league = cellVal(sheet, leagueAddr)
             const cert = cellVal(sheet, certAddr)
 
-            if(role === undefined) { return }
+            if (role === undefined) { return }
 
             const person = {
                 name,
                 roles: [ role ],
                 league,
-                certifications: []
+                certifications: [],
             };
 
-            if(cert !== undefined) {
+            if (cert !== undefined) {
                 person.certifications.push({ level: cert });
             }
 
@@ -219,60 +213,11 @@ export class WorkbookReader {
     }
 
     private getScores() {
-        const maxJams = this.sbTemplate.score.maxJams
-        const sheet = this.workbook.Sheets[this.sbTemplate.score.sheetName]
-        const tab = 'score'
+        const sheet = this.workbook.Sheets[this.sbTemplate.score.sheetName];
+        const scoreReader = new ScoreReader(this.sbData, this.sbTemplate, this.sbErrors);
 
-        const fields = ['firstJamNumber','firstJammerNumber','firstLost','firstLead',
-        'firstCall','firstInj','firstNp','firstTrip','lastTrip'];
-
-        periods.forEach(period => {
-            teams.forEach(team => {
-                const cells = initializeFirstRow(this.sbTemplate, tab, team, period, fields)
-                const maxTrips = cells.lastTrip.c - cells.firstTrip.c
-                
-                let skaterRef:string = '';
-
-                range(0, maxJams).forEach(jam => {
-                    let starPass = false
-                    let blankTrip = false
-                    let isLost = false
-                    let isLead = false
-
-                    const rowCells = cellsForRow(jam, cells);
-
-                    const jamNumber = trim(cellVal(sheet,rowCells.jamNumber))
-                    const skaterNumber = trim(cellVal(sheet, rowCells.jammerNumber));
-
-                    
-                    if(!jamNumber) {
-                        return;
-                    }
-
-                    if(!jamNumberValidator.test(jamNumber)) {
-                        throw `Invalid Jam Number in cell ${rowCells.jamNumber}: ${jamNumber}`
-                    }
-
-                    if(spCheck.test(jamNumber)) {
-                        starPass = true
-                        if (mySPCheck.test(jamNumber)) {
-                            // this pushes an event for the prior jammer
-                            this.sbData.periods[period].jams[jam -1].events.push(
-                            {
-                                event: 'star pass',
-                                skater: skaterRef
-                            })
-                        }
-                        this.starPasses.push({period: period, jam: jam})
-                    }
-
-
-
-                });
-            })
-        })
+        scoreReader.parseScoreSheet(sheet);
     }
-
 
     private getExpectedValue(sheet: WorkSheet, field: string, longName: string = null) {
         const address: string = get(this.sbTemplate, field);
@@ -284,38 +229,6 @@ export class WorkbookReader {
         return value;
     }
 
-
-}
-
-function initializeFirstRow(template:IStatsbookTemplate, tab: string, team: string, period: string, fields: string[]): CellAddressDict
-{
-    const result:CellAddressDict = {};
-
-    fields.reduce((prev, curr) => {
-        prev[curr] = utils.decode_cell(template[tab][team][period][curr])
-        return prev;
-    }, result);
-
-    return result;
-}
-
-function cellsForRow(idx: number, firstCells: CellAddressDict): { [key:string]: string }
-{
-    const result: { [key:string]: string } = {};
-    Object.keys(firstCells).reduce((prev, curr) => {
-        const key = curr.replace('first','');
-        prev[key] = getAddressOfRow(idx, firstCells[curr])
-        return prev
-    }, result)
-
-    return result
-}
-
-function getAddressOfRow(idx: number, firstCell: CellAddress): string {
-    const rcAddr = Object.assign({}, firstCell);
-    rcAddr.r = rcAddr.r + idx;
-
-    return utils.encode_cell(rcAddr);
 }
 
 function getJsDateFromExcel(excelDate) {
@@ -324,8 +237,6 @@ function getJsDateFromExcel(excelDate) {
 
     return new Date((excelDate - (25567 + 1)) * 86400 * 1000)
 }
-
-
 
 function getJsTimeFromExcel(excelTime) {
     // Helper function to convert Excel time to JS format
@@ -340,16 +251,4 @@ function getJsTimeFromExcel(excelTime) {
     return `${hours.toString().padStart(2, '0')
         }:${minutes.toString().padStart(2, '0')
         }:${seconds.toString().padStart(2, '0')}`
-}
-
-
-
-function cellVal(sheet: WorkSheet, address: string) {
-    // Given a worksheet and a cell address, return the value
-    // in the cell if present, and undefined if not.
-    if (sheet[address] && sheet[address].v) {
-        return sheet[address].v
-    } else {
-        return undefined
-    }
 }

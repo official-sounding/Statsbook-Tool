@@ -9,10 +9,10 @@ function generateSkaterId(teamId: string, skaterName: string) {
 }
 
 export function extractTeamsFromSBData(sbData: any, teamList: string[]) {
-    return teamList.map(function(t) {
-        let teamName: string;
-        
-        if(sbData.teams[t].league) {
+    return teamList.map((t) => {
+        let teamName: string
+
+        if (sbData.teams[t].league) {
             teamName = `${sbData.teams[t].league} ${sbData.teams[t].name}`
         } else {
             teamName = sbData.teams[t].name
@@ -21,16 +21,16 @@ export function extractTeamsFromSBData(sbData: any, teamList: string[]) {
         const team = {
             id: teamName,
             name: teamName,
-            skaters: []
+            skaters: [],
         }
 
-        team.skaters = sbData.teams[t].persons.map(function(person) {
+        team.skaters = sbData.teams[t].persons.map((person) => {
             const skaterName = person.name
             return {
+                flags: '',
                 id: generateSkaterId(teamName, skaterName),
                 name: skaterName,
                 number: person.number,
-                flags: ''
             }
         })
 

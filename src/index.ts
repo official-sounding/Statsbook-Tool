@@ -1,20 +1,20 @@
 /* tslint:disable:triple-equals max-line-length forin one-variable-per-declaration */
-import { ipcRenderer as ipc, remote } from 'electron';
-import _ from 'lodash';
-import moment from 'moment';
-import mousetrap from 'mousetrap';
-import { CellAddress, read, utils, WorkBook } from 'xlsx';
-import { extractTeamsFromSBData } from './crg/crgtools';
-import { download } from './tools/download';
-import { WorkbookReader } from './tools/workbookReader';
+import { ipcRenderer as ipc, remote } from 'electron'
+import _ from 'lodash'
+import moment from 'moment'
+import mousetrap from 'mousetrap'
+import { CellAddress, read, utils, WorkBook } from 'xlsx'
+import { extractTeamsFromSBData } from './crg/crgtools'
+import { download } from './tools/download'
+import { WorkbookReader } from './tools/workbookReader'
 
 const { Menu, MenuItem } = remote
 
-import exportJsonRoster from './crg/exportJson';
-import exportXml from './crg/exportXml';
+import exportJsonRoster from './crg/exportJson'
+import exportXml from './crg/exportXml'
 
 interface IHTMLInputEvent extends Event {
-    target: HTMLInputElement & EventTarget;
+    target: HTMLInputElement & EventTarget
 }
 
 // Page Elements
@@ -34,7 +34,7 @@ window.addEventListener('contextmenu', (e) => {
     menu.popup( { window: remote.getCurrentWindow() })
 }, false)
 
-const rABS = true; // read XLSX files as binary strings vs. array buffers
+const rABS = true // read XLSX files as binary strings vs. array buffers
 // Globals
 
 let sbData: any = {},  // derbyJSON formatted statsbook data
@@ -47,7 +47,7 @@ let sbData: any = {},  // derbyJSON formatted statsbook data
     sbFilename = '',
     warningData: any = {}
 
-const sbTemplate: IStatsbookTemplate = null;
+const sbTemplate: IStatsbookTemplate = null
 const teamList = ['home', 'away']
 const anSP = /^sp\*?$/i
 const mySP = /^sp$/i
@@ -122,10 +122,10 @@ const makeReader = (file: File) => {
 
 const readSbData = (data, filename) => {
     // Read in the statsbook data for an event e
-    let readType: 'binary' | 'array' = 'binary';
+    let readType: 'binary' | 'array' = 'binary'
     if (!rABS) {
-        data = new Uint8Array(data);
-        readType = 'array';
+        data = new Uint8Array(data)
+        readType = 'array'
     }
     const workbook = read(data, { type: readType })
 
@@ -144,11 +144,11 @@ const readSbData = (data, filename) => {
         lineupThree: [],
     }
 
-    sbReader = new WorkbookReader(workbook, filename);
+    sbReader = new WorkbookReader(workbook, filename)
 
-    sbSummary = sbReader.summary;
-    sbErrors = sbReader.errors;
-    sbData = sbReader.data;
+    sbSummary = sbReader.summary
+    sbErrors = sbReader.errors
+    sbData = sbReader.data
 
     updateFileInfo()
 
@@ -178,7 +178,6 @@ const readSbData = (data, filename) => {
 function updateFileInfo(): void {
     // Update the "File Information Box"
     // Update File Information Box
-
 
     fileInfoBox.innerHTML = `<strong>Filename:</strong>  ${sbSummary.filename}<br>`
     fileInfoBox.innerHTML += `<strong>SB Version:</strong> ${sbSummary.version}<br>`

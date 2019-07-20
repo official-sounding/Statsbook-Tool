@@ -8,17 +8,22 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
+    "test": "jasmine-ts --config=jasmine.json",
     "lint": "tslint -c tslint.json -p tsconfig.json",
     "start": "npm run build && electron ./dist/main.js",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },
   "devDependencies": {
+    "@types/jasmine": "^3.3.14",
     "@types/uuid": "^3.4.5",
     "devtron": "^1.4.0",
     "electron": "^5.0.6",
     "electron-builder": "^20.0.0",
     "eslint": "^4.19.1",
+    "jasmine": "^3.4.0",
+    "jasmine-ts": "^0.3.0",
+    "ts-node": "^8.3.0",
     "typescript": "^3.5.3"
   },
   "dependencies": {

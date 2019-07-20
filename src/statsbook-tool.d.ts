@@ -182,6 +182,9 @@ declare interface IErrorDetails {
     "long": string
 }
 
+declare type period = '1' | '2'
+declare type team = 'home' | 'away'
+
 declare interface ISimpleWarningDetails {
     period: string,
     team: string,

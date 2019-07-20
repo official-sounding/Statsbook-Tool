@@ -1,4 +1,4 @@
-import { CellAddress, utils, WorkSheet } from 'xlsx'
+import { CellAddress, CellObject, utils, WorkSheet } from 'xlsx'
 
 // tslint:disable-next-line: interface-name
 export interface CellAddressDict { [key: string]: CellAddress }
@@ -9,8 +9,9 @@ export const periods = ['1', '2']
 export function cellVal(sheet: WorkSheet, address: string) {
     // Given a worksheet and a cell address, return the value
     // in the cell if present, and undefined if not.
-    if (sheet[address] && sheet[address].v) {
-        return sheet[address].v
+    const cell: CellObject = sheet[address]
+    if (cell && cell.v) {
+        return cell.v
     } else {
         return undefined
     }

@@ -1,31 +1,31 @@
-import  {app, BrowserWindow, Menu, dialog, ipcMain as ipc } from 'electron'
+import {app, BrowserWindow, dialog, ipcMain as ipc, Menu } from 'electron'
+import isDev from 'electron-is-dev'
 import { join } from 'path'
 import { format as formaturl } from 'url'
-import * as isDev from 'electron-is-dev'
 
-let menu: Menu,
-    win:BrowserWindow,
-    helpWin: BrowserWindow,
-    aboutWin: BrowserWindow
+let menu: Menu
+let win: BrowserWindow
+let helpWin: BrowserWindow
+let aboutWin: BrowserWindow
 
-let createWindow = () => {
+const createWindow = () => {
     win = new BrowserWindow({
         title: 'Statsbook Tool',
         icon: join(__dirname, '../build/flamingo-white.png'),
-        width: 800, 
+        width: 800,
         height: 600,
         webPreferences: {
-            nodeIntegration: true
-        }
+            nodeIntegration: true,
+        },
     })
 
     win.loadURL(formaturl({
         pathname: join(__dirname, '../src/index.html'),
         protocol: 'file',
-        slashes: true
+        slashes: true,
     }))
 
-    if (isDev){
+    if (isDev) {
         win.webContents.openDevTools()
         require('devtron').install()
     }
@@ -33,23 +33,24 @@ let createWindow = () => {
     // Prevent files dropped outside of the drop zone from doing anything.
     win.webContents.on('will-navigate', (event) => event.preventDefault())
 
-    win.on('closed', ()=> {
-        win=null
+    win.on('closed', () => {
+        win = null
     })
 
-    win.webContents.on('crashed', ()=> {
+    win.webContents.on('crashed', () => {
         dialog.showMessageBox(win, {
             type: 'error',
             title: 'Statsbook Tool',
-            message: 'Statsbook Tool has crashed.  This should probably not surprise you.'
+            message: 'Statsbook Tool has crashed.  This should probably not surprise you.',
         })
     })
 
-    win.on('unresponsive', ()=> {
+    win.on('unresponsive', () => {
         dialog.showMessageBox(win, {
             type: 'error',
             title: 'Statsbook Tool',
-            message: 'Statsbook Tool has become unresponsive.  You should probably have been more emotionally supportive.'
+            // tslint:disable-next-line: max-line-length
+            message: 'Statsbook Tool has become unresponsive.  You should probably have been more emotionally supportive.',
         })
     })
 
@@ -57,39 +58,39 @@ let createWindow = () => {
         {
             label: 'File',
             submenu: [
-                {   
+                {
                     id: 'exportXML',
                     label: 'Export Roster to CRG XML',
-                    click: function() {
+                    click() {
                         win.webContents.send('export-crg-roster')
                     },
-                    enabled: false
-                },
-                {   
-                    id: 'exportJSON',
-                    label: 'Export Roster to CRG JSON (beta)',
-                    click: function() {
-                        win.webContents.send('export-crg-roster-json')
-                    },
-                    enabled: false
-                },
-
-                {   
-                    id: 'exportDerbyJSON',
-                    label: 'Save DerbyJSON',
-                    click: function() {
-                        win.webContents.send('save-derby-json')
-                    },
-                    enabled: false
+                    enabled: false,
                 },
                 {
-                    label:'Exit',
+                    id: 'exportJSON',
+                    label: 'Export Roster to CRG JSON (beta)',
+                    click() {
+                        win.webContents.send('export-crg-roster-json')
+                    },
+                    enabled: false,
+                },
+
+                {
+                    id: 'exportDerbyJSON',
+                    label: 'Save DerbyJSON',
+                    click() {
+                        win.webContents.send('save-derby-json')
+                    },
+                    enabled: false,
+                },
+                {
+                    label: 'Exit',
                     accelerator:  'CmdOrCtrl+Q',
-                    click(){
+                    click() {
                         app.quit()
-                    }
-                }
-            ]
+                    },
+                },
+            ],
         },
         {
             label: 'Edit',
@@ -105,26 +106,26 @@ let createWindow = () => {
                 {
                     label: 'Select All',
                     accelerator: 'CmdOrCtrl+A',
-                }
-            ]
+                },
+            ],
         },
         {
             label: 'Help',
             submenu: [
                 {
                     label: 'Error Descriptions',
-                    click: function(){
+                    click() {
                         openHelp()
-                    }
+                    },
                 },
                 {
                     label: 'About',
-                    click: function(){
+                    click() {
                         openAbout()
-                    }
+                    },
                 },
-            ]    
-        }
+            ],
+        },
     ])
     Menu.setApplicationMenu(menu)
 
@@ -132,14 +133,14 @@ let createWindow = () => {
     win.webContents.on('did-finish-load', () => {
         win.webContents.send('do-version-check', app.getVersion())
     })
-    
-    win.webContents.on('new-window', function(e, url) {
+
+    win.webContents.on('new-window', (e, url) => {
         e.preventDefault()
         require('electron').shell.openExternal(url)
     })
 }
 
-let openAbout = () => {
+const openAbout = () => {
     aboutWin = new BrowserWindow({
         parent: win,
         title: 'StatsBook Tool',
@@ -147,7 +148,7 @@ let openAbout = () => {
         width: 300,
         height: 300,
         x: win.getPosition()[0] + 250,
-        y: win.getPosition()[1] + 150
+        y: win.getPosition()[1] + 150,
     })
 
     aboutWin.setMenu(null)
@@ -155,10 +156,10 @@ let openAbout = () => {
     aboutWin.loadURL(formaturl({
         pathname: join(__dirname, '../src/aboutst.html'),
         protocol: 'file',
-        slashes: true
+        slashes: true,
     }))
 
-    aboutWin.webContents.on('new-window', function(e, url) {
+    aboutWin.webContents.on('new-window', (e, url) => {
         e.preventDefault()
         require('electron').shell.openExternal(url)
     })
@@ -170,10 +171,10 @@ let openAbout = () => {
     aboutWin.webContents.on('did-finish-load', () => {
         aboutWin.webContents.send('set-version', app.getVersion())
     })
-    
+
 }
 
-let openHelp = () => {
+const openHelp = () => {
     helpWin = new BrowserWindow({
         parent: win,
         title: 'Error Descriptions',
@@ -181,13 +182,13 @@ let openHelp = () => {
         width: 800,
         height: 600,
         x: win.getPosition()[0] + 20,
-        y: win.getPosition()[1] + 20
+        y: win.getPosition()[1] + 20,
     })
 
     helpWin.loadURL(formaturl({
         pathname: join(__dirname, '../src/help.html'),
         protocol: 'file',
-        slashes: true
+        slashes: true,
     }))
 
     helpWin.setMenu(null)
@@ -195,7 +196,7 @@ let openHelp = () => {
     helpWin.on('closed', () => {
         helpWin = null
     })
-    
+
 }
 
 app.on('ready', createWindow)
@@ -206,18 +207,17 @@ app.on('window-all-closed', () => {
     }
 })
 
-app.on('activate',() => {
-    if (win == null){
+app.on('activate', () => {
+    if (win == null) {
         createWindow()
     }
 })
 
-
 ipc.on('enable-menu-items', () => {
 
-    menu.getMenuItemById('exportXML').enabled = true;
-    menu.getMenuItemById('exportJSON').enabled = true;
-    menu.getMenuItemById('exportDerbyJSON').enabled = true;
+    menu.getMenuItemById('exportXML').enabled = true
+    menu.getMenuItemById('exportJSON').enabled = true
+    menu.getMenuItemById('exportDerbyJSON').enabled = true
 })
 
 ipc.on('error-thrown', (event: any, msg: any, url: any, lineNo: any, columnNo: any) => {
@@ -230,7 +230,7 @@ ipc.on('error-thrown', (event: any, msg: any, url: any, lineNo: any, columnNo: a
         URL: ${url}
         Line Number: ${lineNo}
         Column Number: ${columnNo}
-        Does this help?  It probably doesn't help.`
+        Does this help?  It probably doesn't help.`,
     })
 })
 
@@ -238,6 +238,7 @@ process.on('uncaughtException', (err) => {
     dialog.showMessageBox(win, {
         type: 'error',
         title: 'Statsbook Tool',
-        message: `Statsbook Tool has had an uncaught exception in main.js.  Does this help? (Note: will probably not help.) ${err}`
-    })       
+        // tslint:disable-next-line: max-line-length
+        message: `Statsbook Tool has had an uncaught exception in main.js.  Does this help? (Note: will probably not help.) ${err}`,
+    })
 })

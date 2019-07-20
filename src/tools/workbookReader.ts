@@ -1,30 +1,31 @@
-import { capitalize as cap, get, range, trim } from 'lodash';
-import { CellAddress, utils, WorkBook, WorkSheet } from 'xlsx';
-import { ScoreReader } from './scoreReader';
-import { CellAddressDict, cellsForRow, cellVal, getAddressOfRow, periods, teams } from './utils';
+import { capitalize as cap, get, range, trim } from 'lodash'
+import { CellAddress, utils, WorkBook, WorkSheet } from 'xlsx'
+import { ScoreReader } from './scoreReader'
+import { CellAddressDict, cellsForRow, cellVal, getAddressOfRow, periods, teams } from './utils'
 
-import template2017 from '../../assets/2017statsbook.json';
-import template2018 from '../../assets/2018statsbook.json';
-import errorTemplate from '../../assets/sberrors.json';
+import template2017 from '../../assets/2017statsbook.json'
+import template2018 from '../../assets/2018statsbook.json'
+import errorTemplate from '../../assets/sberrors.json'
 
 export class WorkbookReader {
-    public static defaultVersion: string = '2018';
-    public static currentVersion: string = '2019';
+    public static defaultVersion: string = '2018'
+    public static currentVersion: string = '2019'
 
-    private workbook: WorkBook;
-    private sbVersion: string;
-    private sbFilename: string;
-    private sbTemplate: IStatsbookTemplate;
-    private sbErrors: IErrorSummary;
-    private sbData: DerbyJson.IGame;
-    private penalties: { [playerId: string]: any[] };
+    private workbook: WorkBook
+    private sbVersion: string
+    private sbFilename: string
+    private sbTemplate: IStatsbookTemplate
+    private sbErrors: IErrorSummary
+    private sbData: DerbyJson.IGame
+    private warningData: IWarningData
+    private penalties: { [playerId: string]: any[] }
 
     constructor(workbook: WorkBook, filename: string) {
-        this.workbook = workbook;
+        this.workbook = workbook
         this.sbErrors = JSON.parse(JSON.stringify(errorTemplate))
         this.sbFilename = filename
-        this.penalties = {};
-        this.parseFile();
+        this.penalties = {}
+        this.parseFile()
     }
 
     get summary(): IStatsbookSummary {
@@ -42,9 +43,24 @@ export class WorkbookReader {
         return JSON.parse(JSON.stringify(this.sbData))
     }
 
+    get warnings(): IWarningData {
+        return JSON.parse(JSON.stringify(this.warningData))
+    }
+
     private parseFile(): void {
-        this.sbVersion = this.getVersion();
-        this.sbTemplate = this.getTemplate();
+        this.sbVersion = this.getVersion()
+        this.sbTemplate = this.getTemplate()
+        this.warningData = {
+            lost: [],
+            badStarts: [],
+            badContinues: [],
+            jamsCalledInjury: [],
+            noEntries: [],
+            noExits: [],
+            foulouts: [],
+            expulsions: [],
+            lineupThree: [],
+        }
 
         this.sbData = {
             version: 'v0.3',
@@ -71,9 +87,9 @@ export class WorkbookReader {
             },
         }
 
-        this.getIGRF();
-        this.getTeams();
-        this.getScores();
+        this.getIGRF()
+        this.getTeams()
+        this.getScores()
 
     }
 
@@ -81,11 +97,11 @@ export class WorkbookReader {
         const sheet = this.workbook.Sheets['Read Me']
         const versionText = (sheet ? sheet.A3.v : WorkbookReader.defaultVersion)
         const versionRe = /(\d){4}/
-        return versionRe.exec(versionText)[0];
+        return versionRe.exec(versionText)[0]
     }
 
     private getTemplate(): IStatsbookTemplate {
-        let result: IStatsbookTemplate;
+        let result: IStatsbookTemplate
 
         if (this.sbVersion !== WorkbookReader.currentVersion) {
             this.sbErrors.warnings.oldStatsbookVersion.events.push(
@@ -105,12 +121,12 @@ export class WorkbookReader {
                 throw new Error(`Unable to Load Template for year ${this.sbVersion}`)
         }
 
-        return result;
+        return result
     }
 
     private getIGRF() {
         const sheet = this.workbook.Sheets[this.sbTemplate.mainSheet]
-        const venue = this.sbData.venue;
+        const venue = this.sbData.venue
 
         venue.name = this.getExpectedValue(sheet, 'venue.name', 'Venue Name')
         venue.city = this.getExpectedValue(sheet, 'venue.city', 'Venue City')
@@ -125,7 +141,7 @@ export class WorkbookReader {
 
     private getTeams() {
         teams.forEach((team) => {
-            const teamTemplate = this.sbTemplate.teams[team];
+            const teamTemplate = this.sbTemplate.teams[team]
             const sheet = this.workbook.Sheets[teamTemplate.sheetName]
 
             this.sbData.teams[team] = {
@@ -133,9 +149,9 @@ export class WorkbookReader {
                 name: cellVal(sheet, teamTemplate.name),
                 color: cellVal(sheet, teamTemplate.color),
                 persons: [],
-            };
+            }
 
-            const teamData = this.sbData.teams[team];
+            const teamData = this.sbData.teams[team]
 
             if (!teamData.color) {
                 this.sbErrors.warnings.missingData.events.push(
@@ -165,23 +181,23 @@ export class WorkbookReader {
 
                 this.penalties[`${team}:${skaterNumber}`] = []
 
-            });
-        });
+            })
+        })
 
-        this.getOfficials();
+        this.getOfficials()
     }
 
     private getOfficials() {
 
-        const sheet = this.workbook.Sheets[this.sbTemplate.teams.officials.sheetName];
-        const template = this.sbTemplate.teams.officials;
+        const sheet = this.workbook.Sheets[this.sbTemplate.teams.officials.sheetName]
+        const template = this.sbTemplate.teams.officials
 
         const cells: { [index: string]: CellAddress } = {
             firstName: utils.decode_cell(template.firstName),
             firstRole: utils.decode_cell(template.firstRole),
             firstLeague: utils.decode_cell(template.firstLeague),
             firstCert: utils.decode_cell(template.firstCert),
-        };
+        }
 
         range(0, template.maxNum).forEach((idx) => {
             const nameAddr = getAddressOfRow(idx, cells.firstName)
@@ -201,32 +217,32 @@ export class WorkbookReader {
                 roles: [ role ],
                 league,
                 certifications: [],
-            };
-
-            if (cert !== undefined) {
-                person.certifications.push({ level: cert });
             }
 
-            this.sbData.teams.officials.persons.push(person);
+            if (cert !== undefined) {
+                person.certifications.push({ level: cert })
+            }
+
+            this.sbData.teams.officials.persons.push(person)
 
         })
     }
 
     private getScores() {
-        const sheet = this.workbook.Sheets[this.sbTemplate.score.sheetName];
-        const scoreReader = new ScoreReader(this.sbData, this.sbTemplate, this.sbErrors);
+        const sheet = this.workbook.Sheets[this.sbTemplate.score.sheetName]
+        const scoreReader = new ScoreReader(this.sbData, this.sbTemplate, this.sbErrors)
 
-        scoreReader.parseScoreSheet(sheet);
+        scoreReader.parseScoreSheet(sheet)
     }
 
     private getExpectedValue(sheet: WorkSheet, field: string, longName: string = null) {
-        const address: string = get(this.sbTemplate, field);
-        const value = cellVal(sheet, address);
+        const address: string = get(this.sbTemplate, field)
+        const value = cellVal(sheet, address)
         if (!value && longName) {
-            this.sbErrors.warnings.missingData.events.push(longName);
+            this.sbErrors.warnings.missingData.events.push(longName)
         }
 
-        return value;
+        return value
     }
 
 }

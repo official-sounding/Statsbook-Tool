@@ -7,7 +7,7 @@ import { CellAddress, read, utils, WorkBook } from 'xlsx'
 import { extractTeamsFromSBData } from './crg/crgtools'
 import { download } from './tools/download'
 import { WorkbookReader } from './tools/workbookReader'
-
+import { capitalize as cap } from 'lodash'
 const { Menu, MenuItem } = remote
 
 import exportJsonRoster from './crg/exportJson'
@@ -302,7 +302,7 @@ const readScores = (workbook: WorkBook) => {
                     // Error check - is this jam number out of sequence?
                     if (parseInt(jamNumber.v) != (jam + 1)) {
                         sbErrors.scores.badJamNumber.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${parseInt(jamNumber.v)}`,
+                            `Team: ${cap(team)}, Period: ${pstring}, Jam: ${parseInt(jamNumber.v)}`,
                         )
 
                         // Add jam objects for missing jams.
@@ -342,7 +342,7 @@ const readScores = (workbook: WorkBook) => {
                     // This SHOULD be caught by conditional formatting in Excel, but there
                     // are reports of that breaking sometimes.
                     sbErrors.scores.scoresNotOnIGRF.events.push(
-                        `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Skater: ${skaterNum} `,
+                        `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}, Skater: ${skaterNum} `,
                     )
                 }
 
@@ -383,7 +383,7 @@ const readScores = (workbook: WorkBook) => {
                     // Final case - jam number is SP*.
                     if (skaterNum != ' ') {
                         sbErrors.scores.spStarWithJammer.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}`,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}`,
                         )
                     }
                 }
@@ -401,11 +401,11 @@ const readScores = (workbook: WorkBook) => {
                                 r: jamAddress.r + 1, c: jamAddress.c})]
                             if (_.get(nextJamNumber, 'v') == 'SP') {
                                 sbErrors.warnings.SPNoPointsNoNI.events.push(
-                                    `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Jammer: ${skaterNum}`,
+                                    `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}, Jammer: ${skaterNum}`,
                                 )
                             } else {
                                 sbErrors.scores.noPointsNoNI.events.push(
-                                    `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Jammer: ${skaterNum}`,
+                                    `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}, Jammer: ${skaterNum}`,
                                 )
                             }
                         }
@@ -418,7 +418,7 @@ const readScores = (workbook: WorkBook) => {
                     // Error check - points entered for a trip that's already been completed.
                     if (t <= trip) {
                         sbErrors.scores.spPointsBothJammers.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}`,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}`,
                         )
                     }
 
@@ -426,7 +426,7 @@ const readScores = (workbook: WorkBook) => {
                     if (blankTrip && !starPass) {
                         blankTrip = false
                         sbErrors.scores.blankTrip.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}`,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}`,
                         )
                     }
 
@@ -473,7 +473,7 @@ const readScores = (workbook: WorkBook) => {
                     // ERROR CHECK: No Initial box checked with points given.
                     if (initialCompleted == 'no' && !reResult) {
                         sbErrors.scores.npPoints.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Jammer: ${skaterNum} `,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}, Jammer: ${skaterNum} `,
                         )
                     }
 
@@ -534,7 +534,7 @@ const readScores = (workbook: WorkBook) => {
                 // Error check - SP and lead without lost
                 if (mySP.test(jamNumber.v) && isLead && !isLost) {
                     sbErrors.scores.spLeadNoLost.events.push(
-                        `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}`,
+                        `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}`,
                     )
                 }
             }
@@ -598,7 +598,7 @@ const readScores = (workbook: WorkBook) => {
                     )
                     if (scoreTrip != undefined && isLost == undefined) {
                         sbErrors.scores.pointsNoLeadNoLost.events.push(
-                            `Team: ${ucFirst(teamList[t])}, Period: ${period}, Jam: ${jam}`,
+                            `Team: ${cap(teamList[t])}, Period: ${period}, Jam: ${jam}`,
                         )
                     }
                 }
@@ -679,7 +679,7 @@ const readPenalties = (workbook) => {
                     // This SHOULD be caught by conditional formatting in Excel, but there
                     // are reports of that breaking sometimes.
                     sbErrors.penalties.penaltiesNotOnIGRF.events.push(
-                        `Team: ${ucFirst(team)}, Period: ${period}, Skater: ${skaterNum.v} `,
+                        `Team: ${cap(team)}, Period: ${period}, Skater: ${skaterNum.v} `,
                     )
                 }
 
@@ -705,7 +705,7 @@ const readPenalties = (workbook) => {
                             continue
                         } else {
                             sbErrors.penalties.codeNoJam.events.push(
-                                `Team: ${ucFirst(team)}, Skater: ${skaterNum.v}, Period: ${period}.`,
+                                `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}.`,
                             )
                             continue
                         }
@@ -714,7 +714,7 @@ const readPenalties = (workbook) => {
                     if (jam > sbData.periods[period].jams.length || jam - 1 < 0 || typeof(jam) != 'number') {
                         // Error Check - jam number out of range
                         sbErrors.penalties.penaltyBadJam.events.push(
-                            `Team: ${ucFirst(team)}, Skater: ${skaterNum.v}, Period: ${period}, Recorded Jam: ${jam}`,
+                            `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}, Recorded Jam: ${jam}`,
                         )
                         continue
                     }
@@ -742,7 +742,7 @@ const readPenalties = (workbook) => {
                     // Error Check: FO or EXP code without jam, or vice versa.
                     if (foCode != undefined || foJam != undefined) {
                         sbErrors.penalties.codeNoJam.events.push(
-                            `Team: ${ucFirst(team)}, Skater: ${skaterNum.v}, Period: ${period}.`,
+                            `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}.`,
                         )
                     }
 
@@ -752,7 +752,7 @@ const readPenalties = (workbook) => {
                         && penalties[skater].length > 6
                         && period === 2) {
                         sbErrors.penalties.sevenWithoutFO.events.push(
-                            `Team: ${ucFirst(team)}, Skater: ${skaterNum.v}`,
+                            `Team: ${cap(team)}, Skater: ${skaterNum.v}`,
                         )
                     }
 
@@ -763,7 +763,7 @@ const readPenalties = (workbook) => {
                     jam > sbData.periods[period].jams.length ||
                     jam - 1 < 0) {
                     sbErrors.penalties.foBadJam.events.push(
-                        `Team: ${ucFirst(team)}, Skater: ${skaterNum.v}, Period: ${period}, Recorded Jam: ${jam}`,
+                        `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}, Recorded Jam: ${jam}`,
                     )
                     continue
                 }
@@ -794,7 +794,7 @@ const readPenalties = (workbook) => {
                         (x) => x.event == 'penalty' && x.skater == skater,
                     ).length < 1) {
                         sbErrors.penalties.expulsionNoPenalty.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${foJam.v}, Skater: ${skaterNum.v}`,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${foJam.v}, Skater: ${skaterNum.v}`,
                         )
                     }
 
@@ -814,7 +814,7 @@ const readPenalties = (workbook) => {
                 // ERROR CHECK: FO entered with fewer than seven penalties
                 if (foCode.v == 'FO' && penalties[skater].length < 7) {
                     sbErrors.penalties.foUnder7.events.push(
-                        `Team: ${ucFirst(team)}, Period: ${period}, Skater: ${skaterNum.v}`,
+                        `Team: ${cap(team)}, Period: ${period}, Skater: ${skaterNum.v}`,
                     )
                 }
 
@@ -919,7 +919,7 @@ const readLineups = (workbook: WorkBook) => {
 
                         if (spStarSkater) {
                             sbErrors.lineups.spStarSkater.events.push(
-                                `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}`,
+                                `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}`,
                             )
                         }
 
@@ -930,7 +930,7 @@ const readLineups = (workbook: WorkBook) => {
                         // Error check: Star Pass line without "No Pivot" box checked.
 
                         sbErrors.lineups.starPassNoPivot.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}`,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}`,
                         )
                     }
 
@@ -975,7 +975,7 @@ const readLineups = (workbook: WorkBook) => {
                         if (skaterText == undefined || (skaterText.v == undefined && skaterText.c == undefined)) {
                         // WARNING: Empty box on Lineups without comment
                             sbErrors.warnings.emptyLineupNoComment.events.push(
-                                `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Column: ${s + 1}`,
+                                `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}, Column: ${s + 1}`,
                             )
                         }
                         continue
@@ -989,14 +989,14 @@ const readLineups = (workbook: WorkBook) => {
                         // This SHOULD be caught by conditional formatting in Excel, but there
                         // are reports of that breaking sometimes.
                         sbErrors.lineups.lineupsNotOnIGRF.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Skater: ${skaterText.v} `,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}, Skater: ${skaterText.v} `,
                         )
                     }
 
                     // ERROR CHECK: Same skater entered more than once per jam
                     if (skaterList.indexOf(skater) != -1 && !starPass) {
                         sbErrors.lineups.samePlayerTwice.events.push(
-                            `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                            `Team: ${cap(team)}, Period: ${period}, Jam: ${jam}, Skater: ${skaterText.v}`,
                         )
                     }
 
@@ -1058,14 +1058,14 @@ const readLineups = (workbook: WorkBook) => {
                                     (x) => x.skater == skater,
                                 ) == undefined) {
                                     sbErrors.lineups.slashNoPenalty.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                 }
                                 break
                             case 'ᚾ':
                             // Error Check: Using the rune instead of an X
                                 sbErrors.lineups.runeUsed.events.push(
-                                    `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}`,
+                                    `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}`,
                                 )
                                 // break omitted
                             case 'X':
@@ -1080,7 +1080,7 @@ const readLineups = (workbook: WorkBook) => {
                                         (x) => x.skater == skater,
                                     ) == undefined) {
                                         sbErrors.lineups.xNoPenalty.events.push(
-                                            `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                            `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                         )
                                         warningData.badContinues.push({
                                             skater,
@@ -1108,7 +1108,7 @@ const readLineups = (workbook: WorkBook) => {
                                 // ERROR CHECK: Skater starts in the box while already in the box.
                                 if (box[team].includes(skater)) {
                                     sbErrors.lineups.startsWhileThere.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                 } else {
                                     // Add skater to the box list.
@@ -1120,7 +1120,7 @@ const readLineups = (workbook: WorkBook) => {
                                 if (thisJamPenalties.find((x) => x.skater == skater) == undefined
                                     && priorJamPenalties.find((x) => x.skater == skater) == undefined) {
                                     sbErrors.lineups.sNoPenalty.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                     warningData.badStarts.push({
                                         skater,
@@ -1138,7 +1138,7 @@ const readLineups = (workbook: WorkBook) => {
                                 // ERROR CHECK: Skater starts in the box while already in the box.
                                 if (box[team].includes(skater)) {
                                     sbErrors.lineups.startsWhileThere.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                     remove(box[team], skater)
                                 }
@@ -1148,7 +1148,7 @@ const readLineups = (workbook: WorkBook) => {
                                 if (thisJamPenalties.find((x) => x.skater == skater) == undefined
                                     && priorJamPenalties.find((x) => x.skater == skater) == undefined) {
                                     sbErrors.lineups.sSlashNoPenalty.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                     warningData.badStarts.push({
                                         skater,
@@ -1168,11 +1168,11 @@ const readLineups = (workbook: WorkBook) => {
                                         (x.period < period && x.skater == skater))
                                     if (priorFoulout.length > 0) {
                                         sbErrors.lineups.foInBox.events.push(
-                                            `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                            `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                         )
                                     } else {
                                         sbErrors.lineups.iNotInBox.events.push(
-                                            `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                            `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                         )
                                     }
                                     warningData.badContinues.push({
@@ -1199,7 +1199,7 @@ const readLineups = (workbook: WorkBook) => {
                             default:
                             // Handle invalid lineup codes
                                 sbErrors.lineups.badLineupCode.events.push(
-                                    `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}, Code: ${codeText.v}`,
+                                    `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}, Code: ${codeText.v}`,
                                 )
                                 break
                             }
@@ -1225,7 +1225,7 @@ const readLineups = (workbook: WorkBook) => {
                                     (x) => x.skater == skater,
                                 ) == undefined) {
                                     sbErrors.lineups.dashNoPenalty.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                 }
                                 break
@@ -1240,7 +1240,7 @@ const readLineups = (workbook: WorkBook) => {
                                     (x) => x.skater == skater,
                                 ) == undefined) {
                                     sbErrors.lineups.plusNoPenalty.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                 }
 
@@ -1255,7 +1255,7 @@ const readLineups = (workbook: WorkBook) => {
                                     (x.period < period && x.skater == skater))
                                 if (priorFoulout.length > 0) {
                                     sbErrors.lineups.foInBox.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                 }
 
@@ -1267,7 +1267,7 @@ const readLineups = (workbook: WorkBook) => {
                                     if (thisJamPenalties.find((x) => x.skater == skater) == undefined
                                         && priorJamPenalties.find((x) => x.skater == skater) == undefined) {
                                         sbErrors.lineups.sNoPenalty.events.push(
-                                            `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                            `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                         )
                                         warningData.badStarts.push({
                                             skater,
@@ -1291,7 +1291,7 @@ const readLineups = (workbook: WorkBook) => {
                                     (x.period < period && x.skater == skater))
                                 if (priorFoulout.length > 0) {
                                     sbErrors.lineups.foInBox.events.push(
-                                        `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                        `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                     )
                                 }
 
@@ -1303,7 +1303,7 @@ const readLineups = (workbook: WorkBook) => {
                                     if (thisJamPenalties.find((x) => x.skater == skater) == undefined
                                         && priorJamPenalties.find((x) => x.skater == skater) == undefined) {
                                         sbErrors.lineups.sSlashNoPenalty.events.push(
-                                            `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
+                                            `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`,
                                         )
                                         warningData.badStarts.push({
                                             skater,
@@ -1339,7 +1339,7 @@ const readLineups = (workbook: WorkBook) => {
                             default:
                                 // Handle invalid lineup codes
                                 sbErrors.lineups.badLineupCode.events.push(
-                                    `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}, Code: ${codeText.v}`,
+                                    `Team: ${cap(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}, Code: ${codeText.v}`,
                                 )
                                 break
                             }
@@ -1356,7 +1356,7 @@ const readLineups = (workbook: WorkBook) => {
                     if (box[team].includes(skater) && !allCodes) {
                         sbErrors.lineups.seatedNoCode.events.push(
                             `Team: ${
-                                ucFirst(skater.substr(0, 4))
+                                cap(skater.substr(0, 4))
                             }, Period: ${pstring}, Jam: ${jam}, Skater: ${skater.slice(5)}`,
                         )
                         warningData.noExits.push({
@@ -1398,7 +1398,7 @@ const readLineups = (workbook: WorkBook) => {
                     if (!skaterList.includes(skater)) {
                         sbErrors.lineups.seatedNotLinedUp.events.push(
                             `Team: ${
-                                ucFirst(skater.substr(0, 4))
+                                cap(skater.substr(0, 4))
                             }, Period: ${pstring}, Jam: ${jam}, Skater: ${skater.slice(5)}`,
                         )
                         warningData.noExits.push({
@@ -1415,7 +1415,7 @@ const readLineups = (workbook: WorkBook) => {
                     if (skaterList.indexOf(thisJamPenalties[p].skater) == -1) {
                         sbErrors.penalties.penaltyNoLineup.events.push(
                             `Team: ${
-                                ucFirst(thisJamPenalties[p].skater.substr(0, 4))
+                                cap(thisJamPenalties[p].skater.substr(0, 4))
                             }, Period: ${pstring}, Jam: ${jam}, Skater: ${thisJamPenalties[p].skater.slice(5)}`,
                         )
                     }
@@ -1486,13 +1486,13 @@ const errorCheck = () => {
                     if (!(jam == jams && period == 2)) {
                         sbErrors.penalties.penaltyNoEntry.events.push(
                             `Team: ${
-                                ucFirst(thisJamPenalties[pen].skater.substr(0, 4))
+                                cap(thisJamPenalties[pen].skater.substr(0, 4))
                             }, Period: ${period}, Jam: ${jam}, Skater: ${thisJamPenalties[pen].skater.slice(5)}`,
                         )
                     } else {
                         sbErrors.warnings.lastJamNoEntry.events.push(
                             `Team: ${
-                                ucFirst(thisJamPenalties[pen].skater.substr(0, 4))
+                                cap(thisJamPenalties[pen].skater.substr(0, 4))
                             }, Period: 2, Jam: ${jam}, Skater: ${thisJamPenalties[pen].skater.slice(5)}`,
                         )
                     }
@@ -1512,7 +1512,7 @@ const errorCheck = () => {
             ) {
                 sbErrors.warnings.leadPenaltyNotLost.events.push(
                     `Team: ${
-                        ucFirst(leadJammer.substr(0, 4))
+                        cap(leadJammer.substr(0, 4))
                     }, Period: ${period}, Jam: ${jam}, Jammer: ${leadJammer.slice(5)}`,
                 )
             }
@@ -1538,12 +1538,12 @@ const warningCheck = () => {
             )).length >= 1) {
             if (bs.jam != 1) {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bs.team)}, Period: ${bs.period
+                    `Team: ${cap(bs.team)}, Period: ${bs.period
                     }, Jams: ${bs.jam - 1} & ${bs.jam}`,
                 )
             } else {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bs.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
+                    `Team: ${cap(bs.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
                     } & Period: 2, Jam: ${bs.jam}`,
                 )
             }
@@ -1568,12 +1568,12 @@ const warningCheck = () => {
             )).length >= 1) {
             if (bc.jam != 1) {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bc.team)}, Period: ${bc.period
+                    `Team: ${cap(bc.team)}, Period: ${bc.period
                     }, Jams: ${bc.jam - 1} & ${bc.jam}`,
                 )
             } else {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bc.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
+                    `Team: ${cap(bc.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
                     } & Period: 2, Jam: ${bc.jam}`,
                 )
             }
@@ -1589,12 +1589,12 @@ const warningCheck = () => {
         ).length > 0) {
             if (bc.jam != 1) {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bc.team)}, Period: ${bc.period
+                    `Team: ${cap(bc.team)}, Period: ${bc.period
                     }, Jams: ${bc.jam - 1} & ${bc.jam}`,
                 )
             } else {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bc.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
+                    `Team: ${cap(bc.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
                     } & Period: 2, Jam: ${bc.jam}`,
                 )
             }
@@ -1610,12 +1610,12 @@ const warningCheck = () => {
         ).length > 0) {
             if (bc.jam != 1) {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bc.team)}, Period: ${bc.period
+                    `Team: ${cap(bc.team)}, Period: ${bc.period
                     }, Jams: ${bc.jam - 1} & ${bc.jam}`,
                 )
             } else {
                 sbErrors.warnings.possibleSub.events.push(
-                    `Team: ${ucFirst(bc.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
+                    `Team: ${cap(bc.team)}, Period: 1, Jam: ${sbData.periods['1'].jams.length
                     } & Period: 2, Jam: ${bc.jam}`,
                 )
             }
@@ -1630,7 +1630,7 @@ const warningCheck = () => {
             (event) => event.skater == lost.skater && event.event == 'penalty',
         ).length == 0) {
             sbErrors.warnings.lostNoPenalty.events.push(
-                `Team: ${ucFirst(lost.team)}, Period: ${lost.period
+                `Team: ${cap(lost.team)}, Period: ${lost.period
                 }, Jam: ${lost.jam}, Skater: ${lost.skater.slice(5)}`,
             )
         }
@@ -1781,11 +1781,6 @@ const exitBox = (pstring, jam, skater) => {
             skater,
         },
     )
-}
-
-const ucFirst = (string) => {
-    // Capitalize first character of a string
-    return string.charAt(0).toUpperCase() + string.slice(1)
 }
 
 // Change appearance of input box on file dragover

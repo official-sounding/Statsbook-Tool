@@ -1,17 +1,17 @@
 /* tslint:disable:triple-equals max-line-length forin one-variable-per-declaration */
 import { ipcRenderer as ipc, remote } from 'electron'
 import _ from 'lodash'
+import { capitalize as cap } from 'lodash'
 import moment from 'moment'
 import mousetrap from 'mousetrap'
 import { CellAddress, read, utils, WorkBook } from 'xlsx'
-import { extractTeamsFromSBData } from './crg/crgtools'
 import { download } from './tools/download'
 import { WorkbookReader } from './tools/workbookReader'
-import { capitalize as cap } from 'lodash'
 const { Menu, MenuItem } = remote
 
-import exportJsonRoster from './crg/exportJson'
-import exportXml from './crg/exportXml'
+import { extractTeamsFromSBData } from './crg/crgtools'
+import { exportJson as exportJsonRoster } from './crg/exportJson'
+import { exportXml } from './crg/exportXml'
 
 interface IHTMLInputEvent extends Event {
     target: HTMLInputElement & EventTarget
@@ -1809,7 +1809,7 @@ ipc.on('save-derby-json', () => {
 ipc.on('export-crg-roster', () => {
     // Exports statsbook rosters in CRG Scoreboard XML Format
 
-    const teams = extractTeamsFromSBData(sbData, teamList)
+    const teams = extractTeamsFromSBData(sbData)
     const xml = exportXml(teams)
 
     const data = encode(xml.end({pretty: true}))
@@ -1819,7 +1819,7 @@ ipc.on('export-crg-roster', () => {
 
 ipc.on('export-crg-roster-json', () => {
     // Exports statsbook rosters in CRG Scoreboard's Beta JSON Format
-    const teams = extractTeamsFromSBData(sbData, teamList)
+    const teams = extractTeamsFromSBData(sbData)
     const json = exportJsonRoster(teams)
 
     const blob = new Blob( [JSON.stringify(json, null, ' ')], { type: 'application/json' })

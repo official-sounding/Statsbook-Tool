@@ -1,6 +1,6 @@
-const builder = require('xmlbuilder')
+import builder from 'xmlbuilder'
 
-function exportXml(teamData) {
+export function exportXml(teamData: ICrgTeam[]) {
     const root = builder.create('document', {encoding: 'UTF-16'})
     const teams = root.ele('Teams')
 
@@ -22,21 +22,19 @@ function exportXml(teamData) {
     from.ele('Team1 ')
     from.ele('Team2 ')
 
-    teamData.forEach(function(team) {
-        const teamEl = teams.ele('Team',  {'Id': team.id})
+    teamData.forEach((team) => {
+        const teamEl = teams.ele('Team',  {Id: team.id})
         teamEl.ele('Name').dat(team.name)
         teamEl.ele('Logo ')
 
-        team.skaters.forEach(function(skater) {
-            const skaterEl = teamEl.ele('Skater', {'Id': skater.id})
+        team.skaters.forEach((skater) => {
+            const skaterEl = teamEl.ele('Skater', {Id: skater.id})
 
             skaterEl.ele('Name').dat(skater.name)
             skaterEl.ele('Number').dat(skater.number)
-            skaterEl.ele('Flags', {'empty': 'true'}).dat(skater.flags)
+            skaterEl.ele('Flags', {empty: 'true'}).dat(skater.flags)
         })
     })
 
     return root
 }
-
-module.exports = exportXml

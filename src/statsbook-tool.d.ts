@@ -214,3 +214,16 @@ declare interface IStatsbookSummary {
     version: string,
     filename: string
 }
+
+declare interface ICrgSkater {
+    id: string,
+    flags: string,
+    number: string,
+    name: string
+}
+
+declare interface ICrgTeam {
+    id: string,
+    name: string,
+    skaters: Array<ICrgSkater>
+}

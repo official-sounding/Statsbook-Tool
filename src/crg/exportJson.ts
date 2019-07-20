@@ -1,6 +1,5 @@
-function exportJson(teams) {
+export function exportJson(teams: ICrgTeam[]) {
     const state = {}
-
 
     teams.forEach((team) => {
         const teamPrefix = `ScoreBoard.PreparedTeam(${team.id})`
@@ -18,8 +17,5 @@ function exportJson(teams) {
         })
     })
 
-
     return { state }
 }
-
-module.exports = exportJson

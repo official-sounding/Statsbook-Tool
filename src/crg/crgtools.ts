@@ -1,15 +1,16 @@
 import uuid from 'uuid/v5'
+import { teams } from '../tools/utils'
 
 // use this guid as the namespace for the skater id
 const appNamespace = 'f291bfb9-74bf-4c5b-af33-902c19a74bea'
 
-function generateSkaterId(teamId: string, skaterName: string) {
+function generateSkaterId(teamId: string, skaterName: string): string {
     const name = `${teamId}-${skaterName}`
     return uuid(name, appNamespace)
 }
 
-export function extractTeamsFromSBData(sbData: any, teamList: string[]) {
-    return teamList.map((t) => {
+export function extractTeamsFromSBData(sbData: DerbyJson.IGame): ICrgTeam[] {
+    return teams.map((t) => {
         let teamName: string
 
         if (sbData.teams[t].league) {
@@ -18,13 +19,13 @@ export function extractTeamsFromSBData(sbData: any, teamList: string[]) {
             teamName = sbData.teams[t].name
         }
 
-        const team = {
+        const team: ICrgTeam = {
             id: teamName,
             name: teamName,
             skaters: [],
         }
 
-        team.skaters = sbData.teams[t].persons.map((person) => {
+        team.skaters = sbData.teams[t].persons.map((person: DerbyJson.IPerson) => {
             const skaterName = person.name
             return {
                 flags: '',

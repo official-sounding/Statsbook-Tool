@@ -30,6 +30,7 @@ declare namespace DerbyJson {
     }
 
     interface IJam {
+        number: number,
         events: IEvent[],
     }
 
@@ -37,6 +38,10 @@ declare namespace DerbyJson {
         event: string,
         skater: ISkaterRef,
         position?: string,
+        number?: number,
+        score?: number,
+        team?: string,
+        completed?: boolean
     }
 
     interface ISkaterRef {

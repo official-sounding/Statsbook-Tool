@@ -230,7 +230,7 @@ export class WorkbookReader {
 
     private getScores() {
         const sheet = this.workbook.Sheets[this.sbTemplate.score.sheetName]
-        const scoreReader = new ScoreReader(this.sbData, this.sbTemplate, this.sbErrors)
+        const scoreReader = new ScoreReader(this.sbData, this.sbTemplate, this.sbErrors, this.warningData)
 
         scoreReader.parseScoreSheet(sheet)
     }

@@ -1,4 +1,4 @@
-import uuid from 'uuid/v5';
+import uuid from 'uuid/v5'
 
 // use this guid as the namespace for the skater id
 const appNamespace = 'f291bfb9-74bf-4c5b-af33-902c19a74bea'

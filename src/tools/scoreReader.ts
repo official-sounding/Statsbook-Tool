@@ -1,26 +1,34 @@
-import { capitalize as cap, get, range, trim } from 'lodash'
+import { capitalize as cap, countBy, range, trim } from 'lodash'
 import { WorkSheet } from 'xlsx/types'
 // tslint:disable-next-line: max-line-length
-import { CellAddressDict, cellsForRow, cellVal, forEachPeriodTeam, getAddressOfRow, getAddressOfTrip, initializeFirstRow } from './utils'
+import { CellAddressDict, cellsForRow, cellVal, forEachPeriodTeam, getAddressOfTrip, initializeFirstRow, teams } from './utils'
 
 const jamNumberValidator = /^(\d+|SP|SP\*)$/i
 const spCheck = /^SP\*?$/i
 const mySPCheck = /^SP$/i
 
+const pointsAndNPCheck = /(\d)\+NP/i
+const ippRe = /(\d)\+(\d)/
+
 export class ScoreReader {
     private sbData: DerbyJson.IGame
     private sbTemplate: IStatsbookTemplate
     private sbErrors: IErrorSummary
+    private warningData: IWarningData
 
     private starPasses: Array<{ period: string; jam: number; }> = []
 
     private maxJams: number
-    private tab = 'score'
 
-    constructor(sbData, sbTemplate, sbErrors) {
+    constructor(sbData: DerbyJson.IGame,
+                sbTemplate: IStatsbookTemplate,
+                sbErrors: IErrorSummary,
+                warningData: IWarningData) {
+
         this.sbData = sbData
         this.sbTemplate = sbTemplate
         this.sbErrors = sbErrors
+        this.warningData = warningData
 
         this.maxJams = this.sbTemplate.score.maxJams
     }
@@ -33,16 +41,18 @@ export class ScoreReader {
             let skaterRef: string = ''
             const priorJam: DerbyJson.IJam = null
             let jamIdx = 0
-            const tripCount = 1
+            let tripCount = 1
             let starPass = false
 
             range(0, this.maxJams).forEach((rowIdx) => {
-                const isLost = false
-                const isLead = false
 
                 const rowCells = cellsForRow(rowIdx, cells)
                 const jamNumber = trim(cellVal(sheet, rowCells.jamNumber))
                 const skaterNumber = trim(cellVal(sheet, rowCells.jammerNumber))
+                const lead = cellVal(sheet, rowCells.lead) !== undefined
+                const lost = cellVal(sheet, rowCells.lost) !== undefined
+                const call = cellVal(sheet, rowCells.call) !== undefined
+                const inj = cellVal(sheet, rowCells.inj) !== undefined
                 const initialCompleted = cellVal(sheet, rowCells.np) !== undefined
                 const rowDescription =
                 `Team: ${cap(team)}, Period: ${period}, Jam: ${jamNumber}, Jammer: ${skaterNumber || ''}`
@@ -85,7 +95,7 @@ export class ScoreReader {
                     jamIdx = parseInt(jamNumber) - 1
                 }
 
-                let jam = this.sbData.periods[period].jams[jamIdx]
+                let jam: DerbyJson.IJam = this.sbData.periods[period].jams[jamIdx]
 
                 if (!jam) {
                     jam = {number: jamIdx + 1, events: []}
@@ -123,13 +133,13 @@ export class ScoreReader {
                 }
 
                 let blankTrip = false
-                range(1, maxTrips).forEach((tripIdx) => {
-                    const tripAddress = getAddressOfTrip(tripIdx, rowCells.firstTrip)
+                range(1, maxTrips).forEach((colIdx) => {
+                    const tripAddress = getAddressOfTrip(colIdx, rowCells.firstTrip)
                     const tripScore = cellVal(sheet, tripAddress)
 
                     if (!tripScore) {
                         // ERROR CHECK - no trip score, initial pass completed
-                        if (initialCompleted && tripIdx === 1 && !starPass) {
+                        if (initialCompleted && colIdx === 1 && !starPass) {
                             const nextRow = cellsForRow(jamIdx + 1, cells)
                             const nextJamNumber = trim(cellVal(sheet, nextRow.jamNumber))
                             if (mySPCheck.test(nextJamNumber)) {
@@ -142,9 +152,154 @@ export class ScoreReader {
                         return
                     }
 
+                    // ERROR CHECK - points entered for a trip that's already been completed.
+                    if (colIdx <= tripCount) {
+                        this.sbErrors.scores.spPointsBothJammers.events.push(rowDescription)
+                    }
+
+                    // ERROR CHECK - skipped column in a non star pass line
+                    if (blankTrip && !starPass) {
+                        blankTrip = false
+                        this.sbErrors.scores.blankTrip.events.push(rowDescription)
+                    }
+
+                    const reResult = pointsAndNPCheck.exec(tripScore)
+                 //   const ippResult = ippRe.exec(tripScore)
+                    let points = 0
+
+                    if (reResult !== null) {
+                        points = parseInt(reResult[1])
+                        const trip = jam
+                        .events
+                        .find((e) =>  e.event === 'pass' && e.skater === skaterRef && e.number === 1)
+
+                        if (trip) {
+                            trip.score = points
+                        }
+                        // TODO: add support for x + y parsing
+                    } else {
+                        points = parseInt(tripScore)
+                        if (!starPass) {
+                            tripCount = tripCount + 1
+                        }
+
+                        jam.events.push(
+                            {
+                                event: 'pass',
+                                number: tripCount,
+                                score: points,
+                                skater: skaterRef,
+                                team,
+                            },
+                        )
+                    }
+
+                    if (!initialCompleted && !reResult) {
+                        this.sbErrors.scores.npPoints.events.push(rowDescription)
+                    }
+
                 })
+
+                if (lead) {
+                    jam.events.push({
+                        event: 'lead',
+                        skater: skaterRef,
+                    })
+                }
+
+                if (lost) {
+                    jam.events.push({
+                        event: 'lost',
+                        skater: skaterRef,
+                    })
+
+                    this.warningData.lost.push({
+                        period,
+                        team,
+                        jam: jam.number,
+                        skater: skaterRef,
+                    })
+                }
+
+                if (call) {
+                    jam.events.push({
+                        event: 'call',
+                        skater: skaterRef,
+                    })
+                }
+
+                if (inj) {
+                    this.warningData.jamsCalledInjury.push(
+                        {
+                            team,
+                            period,
+                            jam: jam.number,
+                        },
+                    )
+                }
+
+                // Error check - SP and lead without lost
+                if (mySPCheck.test(jamNumber) && lead && !lost) {
+                    this.sbErrors.scores.spLeadNoLost.events.push(rowDescription)
+                }
             })
+
+            if (team === 'away') {
+                this.sbData.periods[period].jams
+                .forEach((jam) => {
+                    const jamDescription =  `Period: ${period}, Jam: ${jam.number}`
+                    const counts = countBy(jam.events, (ev) => ev.event)
+                    if (counts.lead > 1) {
+                        this.sbErrors.scores.tooManyLead.events.push(jamDescription)
+                    }
+
+                    if (counts.call > 1) {
+                        this.sbErrors.scores.tooManyCall.events.push(jamDescription)
+                    }
+
+                    const injuryCount = this.warningData.jamsCalledInjury
+                                        .filter((ev) => ev.period === period && ev.jam === jam.number)
+                                        .length
+
+                    // ERROR CHECK: Injury box checked for only one team in a jam.
+                    if (injuryCount === 1)  {
+                        this.sbErrors.scores.injuryOnlyOnce.events.push(jamDescription)
+                    }
+
+                    // Push injury event here, so that only one is pushed per jam instead of two
+                    if (injuryCount > 1) {
+                        jam.events.push({
+                            event: 'injury',
+                        })
+                    }
+
+                    if (counts.lead === 0) {
+                        teams.forEach((teamname) => {
+                            // tslint:disable-next-line: max-line-length
+                            const lost = !!jam.events.find((ev) => ev.event === 'lost' && ev.skater.startsWith(teamname))
+                            // tslint:disable-next-line: max-line-length
+                            const points = !!jam.events.find((ev) => ev.event === 'pass' && ev.team === teamname && ev.number > 1)
+
+                            if (points && !lost) {
+                                this.sbErrors.scores.pointsNoLeadNoLost.events.push(
+                                    `Team: ${cap(teamname)}, ${jamDescription}`,
+                                )
+                            }
+                        })
+                    }
+
+                })
+            }
         })
+
+        // Error check: Star pass marked for only one team in a jam.
+        const spCount = countBy(this.starPasses, (sp) => `Period: ${sp.period} Jam: ${sp.jam}`)
+
+        Object.keys(spCount)
+            .filter((sp) => spCount[sp] === 1)
+            .forEach((spDesc) => {
+                this.sbErrors.scores.onlyOneStarPass.events.push(spDesc)
+            })
     }
 
     private buildFirstRow(period: string, team: string): CellAddressDict {

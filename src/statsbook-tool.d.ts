@@ -182,6 +182,27 @@ declare interface IErrorDetails {
     "long": string
 }
 
+declare interface ISimpleWarningDetails {
+    period: string,
+    team: string,
+    jam: number
+}
+declare interface  IWarningDetails extends ISimpleWarningDetails {
+    skater: string
+}
+
+declare interface IWarningData {
+    lost: Array<IWarningDetails>,
+    badStarts: Array<IWarningDetails>,
+    noEntries: Array<IWarningDetails>,
+    badContinues: Array<IWarningDetails>,
+    noExits: Array<IWarningDetails>,
+    foulouts: Array<IWarningDetails>,
+    expulsions: Array<IWarningDetails>,
+    jamsCalledInjury: Array<ISimpleWarningDetails>,
+    lineupThree: Array<IWarningDetails>,
+}
+
 declare interface IErrorSummary {
     scores: { [key:string]: IErrorDetails },
     penalties: { [key:string]: IErrorDetails },

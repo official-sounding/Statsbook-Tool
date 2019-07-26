@@ -41,7 +41,12 @@ declare namespace DerbyJson {
         number?: number,
         score?: number,
         team?: string,
-        completed?: boolean
+        completed?: boolean,
+        notes?: IEventNote[]
+    }
+
+    interface IEventNote {
+        note: string
     }
 
     interface ISkaterRef {

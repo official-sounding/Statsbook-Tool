@@ -32,15 +32,15 @@ export function cellsForRow(idx: number, firstCells: CellAddressDict): { [key: s
     return result
 }
 
-export function getAddressOfRow(idx: number, firstCell: CellAddress): string {
+export function getAddressOfRow(rowIdx: number, firstCell: CellAddress): string {
     const rcAddr = Object.assign({}, firstCell)
-    rcAddr.r = rcAddr.r + idx
+    rcAddr.r = rcAddr.r + rowIdx
     return utils.encode_cell(rcAddr)
 }
 
-export function getAddressOfTrip(tripIdx: number, firstCell: string) {
-    const rcAddr = utils.decode_cell(firstCell)
-    rcAddr.c = rcAddr.c + tripIdx
+export function getAddressOfCol(colIdx: number, firstCell: CellAddress): string {
+    const rcAddr = Object.assign({}, firstCell)
+    rcAddr.c = rcAddr.c + colIdx
     return utils.encode_cell(rcAddr)
 }
 

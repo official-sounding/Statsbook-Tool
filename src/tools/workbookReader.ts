@@ -7,6 +7,7 @@ import template2017 from '../../assets/2017statsbook.json'
 import template2018 from '../../assets/2018statsbook.json'
 import errorTemplate from '../../assets/sberrors.json'
 import { IgrfReader } from './igrfReader'
+import { PenaltyReader } from './penaltyReader'
 
 export class WorkbookReader {
     public static defaultVersion: string = '2018'
@@ -90,7 +91,7 @@ export class WorkbookReader {
 
         this.getIGRF()
         this.getScores()
-
+        this.getPenalties()
     }
 
     private getVersion(): string {
@@ -136,5 +137,12 @@ export class WorkbookReader {
         const scoreReader = new ScoreReader(this.sbData, this.sbTemplate, this.sbErrors, this.warningData)
 
         scoreReader.parseSheet(sheet)
+    }
+
+    private getPenalties() {
+        const sheet = this.workbook.Sheets[this.sbTemplate.penalties.sheetName]
+        const penaltyReader = new PenaltyReader(this.sbData, this.sbTemplate, this.sbErrors, this.warningData)
+
+        penaltyReader.parseSheet(sheet)
     }
 }

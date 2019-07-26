@@ -42,8 +42,6 @@ let sbData: any = {},  // derbyJSON formatted statsbook data
     sbReader: WorkbookReader,
     sbErrors: IErrorSummary,
     sbSummary: IStatsbookSummary,
-    penalties: any = {},
-    starPasses: any[] | Array<{ period: number; jam: number; }> = [],
     sbFilename = '',
     warningData: any = {}
 
@@ -129,30 +127,15 @@ const readSbData = (data, filename) => {
     }
     const workbook = read(data, { type: readType })
 
-    // Reinitialize globals
-    penalties = {}
-    starPasses = []
-    warningData = {
-        badStarts: [],
-        noEntries: [],
-        badContinues: [],
-        noExits: [],
-        foulouts: [],
-        expulsions: [],
-        lost: [],
-        jamsCalledInjury: [],
-        lineupThree: [],
-    }
-
     sbReader = new WorkbookReader(workbook, filename)
 
     sbSummary = sbReader.summary
     sbErrors = sbReader.errors
     sbData = sbReader.data
+    warningData = sbReader.warnings
 
     updateFileInfo()
 
-    readPenalties(workbook)
     readLineups(workbook)
     errorCheck()
     warningCheck()
@@ -197,237 +180,6 @@ const createRefreshButton = () => {
     mousetrap.bind('f5', () => {
         makeReader(sbFile)
     })
-}
-
-const readPenalties = (workbook) => {
-// Given a workbook, extract the data from the "Penalties" tab.
-
-    let cells: any = {}
-
-    const numberAddress: CellAddress = { c: null, r: null },
-        penaltyAddress: CellAddress = { c: null, r: null },
-        jamAddress: CellAddress = { c: null, r: null },
-        foAddress: CellAddress = { c: null, r: null },
-        foJamAddress: CellAddress = { c: null, r: null },
-        benchExpCodeAddress: CellAddress = { c: null, r: null },
-        benchExpJamAddress: CellAddress = { c: null, r: null },
-        foulouts = [],
-        maxPenalties = sbTemplate.penalties.maxPenalties,
-        sheet = workbook.Sheets[sbTemplate.penalties.sheetName]
-
-    for (let period = 1; period < 3; period ++) {
-    // For each period
-
-        const pstring = period.toString()
-
-        const props = ['firstNumber', 'firstPenalty', 'firstJam',
-            'firstFO', 'firstFOJam', 'benchExpCode', 'benchExpJam']
-        const tab = 'penalties'
-
-        for (const i in teamList) {
-        // For each team
-
-            const team = teamList[i]
-
-            // Maximum number of skaters per team
-            const maxNum = sbTemplate.teams[team].maxNum
-
-            // Read in starting positions for penalty parameters
-            cells = initCells(team, pstring, tab, props)
-            numberAddress.c = cells.firstNumber.c
-            penaltyAddress.c = cells.firstPenalty.c
-            jamAddress.c = cells.firstJam.c
-            foAddress.c = cells.firstFO.c
-            foJamAddress.c = cells.firstFOJam.c
-
-            for (let s = 0; s < maxNum; s++) {
-            // For each player
-
-                // Advance two rows per skater - TODO make this settable?
-                numberAddress.r = cells.firstNumber.r + (s * 2)
-                penaltyAddress.r = cells.firstPenalty.r + (s * 2)
-                jamAddress.r = cells.firstJam.r + (s * 2)
-                foAddress.r = cells.firstFO.r + (s * 2)
-                foJamAddress.r = cells.firstFOJam.r + (s * 2)
-
-                const skaterNum = sheet[utils.encode_cell(numberAddress)]
-
-                if (skaterNum == undefined || skaterNum.v == '') {continue}
-
-                // ERROR CHECK: skater on penalty sheet not on the IGRF
-                if (sbData.teams[team].persons.findIndex((x) => x.number == skaterNum.v) == -1) {
-                    // This SHOULD be caught by conditional formatting in Excel, but there
-                    // are reports of that breaking sometimes.
-                    sbErrors.penalties.penaltiesNotOnIGRF.events.push(
-                        `Team: ${cap(team)}, Period: ${period}, Skater: ${skaterNum.v} `,
-                    )
-                }
-
-                const skater = team + ':' + skaterNum.v
-
-                for (let p = 0; p < maxPenalties; p++) {
-                // For each penalty space
-
-                    penaltyAddress.c = cells.firstPenalty.c + p
-                    jamAddress.c = cells.firstJam.c + p
-
-                    // Read the penalty code and jam number
-                    const codeText = sheet[utils.encode_cell(penaltyAddress)]
-                    const jamText = sheet[utils.encode_cell(jamAddress)]
-
-                    const code = _.get(codeText, 'v')
-                    const jam = _.get(jamText, 'v')
-
-                    if (code == undefined || jam == undefined) {
-                        // Error Check - penalty code without jam # or vice versa
-
-                        if (code == undefined && jam == undefined) {
-                            continue
-                        } else {
-                            sbErrors.penalties.codeNoJam.events.push(
-                                `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}.`,
-                            )
-                            continue
-                        }
-                    }
-
-                    if (jam > sbData.periods[period].jams.length || jam - 1 < 0 || typeof(jam) != 'number') {
-                        // Error Check - jam number out of range
-                        sbErrors.penalties.penaltyBadJam.events.push(
-                            `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}, Recorded Jam: ${jam}`,
-                        )
-                        continue
-                    }
-
-                    // Add a penalty event to that jam
-                    sbData.periods[period].jams[jam - 1].events.push(
-                        {
-                            event: 'penalty',
-                            skater,
-                            penalty: code,
-                        },
-                    )
-                    penalties[skater].push([jam, code])
-
-                }
-
-                // Check for FO or EXP, add events
-                const foCode = sheet[utils.encode_cell(foAddress)]
-                const foJam = sheet[utils.encode_cell(foJamAddress)]
-                const code = _.get(foCode, 'v')
-                const jam = _.get(foJam, 'v')
-
-                if (foCode == undefined || foJam == undefined) {
-
-                    // Error Check: FO or EXP code without jam, or vice versa.
-                    if (foCode != undefined || foJam != undefined) {
-                        sbErrors.penalties.codeNoJam.events.push(
-                            `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}.`,
-                        )
-                    }
-
-                    // ERROR CHECK: Seven or more penalties with NO foulout entered
-                    if (foulouts.indexOf(skater) == -1
-                        && penalties[skater] != undefined
-                        && penalties[skater].length > 6
-                        && period === 2) {
-                        sbErrors.penalties.sevenWithoutFO.events.push(
-                            `Team: ${cap(team)}, Skater: ${skaterNum.v}`,
-                        )
-                    }
-
-                    continue
-                }
-
-                if (typeof(jam) != 'number' ||
-                    jam > sbData.periods[period].jams.length ||
-                    jam - 1 < 0) {
-                    sbErrors.penalties.foBadJam.events.push(
-                        `Team: ${cap(team)}, Skater: ${skaterNum.v}, Period: ${period}, Recorded Jam: ${jam}`,
-                    )
-                    continue
-                }
-
-                // If there is expulsion, add an event.
-                // Note that derbyJSON doesn't actually record foul-outs,
-                // so only expulsions are recorded.
-                if (code != 'FO') {
-                    sbData.periods[period].jams[jam - 1].events.push(
-                        {
-                            event: 'expulsion',
-                            skater,
-                            notes: [
-                                {note: 'Penalty: ' + code},
-                                {note: 'Jam: ' + jam},
-                            ],
-                        },
-                    )
-                    warningData.expulsions.push(
-                        {skater,
-                            team,
-                            period,
-                            jam},
-                    )
-
-                    // ERROR CHECK: Expulsion code for a jam with no penalty
-                    if (sbData.periods[period].jams[foJam.v - 1].events.filter(
-                        (x) => x.event == 'penalty' && x.skater == skater,
-                    ).length < 1) {
-                        sbErrors.penalties.expulsionNoPenalty.events.push(
-                            `Team: ${cap(team)}, Period: ${period}, Jam: ${foJam.v}, Skater: ${skaterNum.v}`,
-                        )
-                    }
-
-                }
-
-                // If there is a foul-out, add an event.
-                if (foCode.v == 'FO') {
-                    foulouts.push(skater)
-                    warningData.foulouts.push(
-                        {skater,
-                            team,
-                            period,
-                            jam: foJam.v},
-                    )
-                }
-
-                // ERROR CHECK: FO entered with fewer than seven penalties
-                if (foCode.v == 'FO' && penalties[skater].length < 7) {
-                    sbErrors.penalties.foUnder7.events.push(
-                        `Team: ${cap(team)}, Period: ${period}, Skater: ${skaterNum.v}`,
-                    )
-                }
-
-            }
-
-            // Deal with bench expulsions
-            benchExpCodeAddress.r = cells.benchExpCode.r
-            benchExpJamAddress.r = cells.benchExpJam.r
-
-            for (let e = 0; e < 2; e++) {
-                benchExpCodeAddress.c = cells.benchExpCode.c + e
-                benchExpJamAddress.c = cells.benchExpJam.c + e
-
-                const benchExpCode = sheet[utils.encode_cell(benchExpCodeAddress)]
-                const benchExpJam = sheet[utils.encode_cell(benchExpJamAddress)]
-
-                if (benchExpCode == undefined || benchExpJam == undefined) {
-                    continue
-                }
-                sbData.periods[period].jams[benchExpJam.v - 1].events.push(
-                    {
-                        event: 'expulsion',
-                        notes: [
-                            {note: 'Bench Staff Expulsion - ' + benchExpCode.v},
-                            {note: 'Jam: ' + benchExpJam.v},
-                        ],
-                    },
-                )
-
-            }
-        }
-    }
-
 }
 
 const readLineups = (workbook: WorkBook) => {
@@ -1302,16 +1054,6 @@ const sbErrorsToTable = () => {
     }
 
     return table
-}
-
-const cellVal = (sheet, address) => {
-    // Given a worksheet and a cell address, return the value
-    // in the cell if present, and undefined if not.
-    if (sheet[address] && sheet[address].v) {
-        return sheet[address].v
-    } else {
-        return undefined
-    }
 }
 
 const initCells = (team, period, tab, props) => {

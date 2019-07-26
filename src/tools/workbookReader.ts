@@ -1,11 +1,12 @@
-import { capitalize as cap, get, range, trim } from 'lodash'
+import { capitalize as cap, get, range } from 'lodash'
 import { CellAddress, utils, WorkBook, WorkSheet } from 'xlsx'
 import { ScoreReader } from './scoreReader'
-import { CellAddressDict, cellsForRow, cellVal, getAddressOfRow, periods, teams } from './utils'
+import { cellVal, getAddressOfRow, teams } from './utils'
 
 import template2017 from '../../assets/2017statsbook.json'
 import template2018 from '../../assets/2018statsbook.json'
 import errorTemplate from '../../assets/sberrors.json'
+import { IgrfReader } from './igrfReader'
 
 export class WorkbookReader {
     public static defaultVersion: string = '2018'
@@ -88,7 +89,6 @@ export class WorkbookReader {
         }
 
         this.getIGRF()
-        this.getTeams()
         this.getScores()
 
     }
@@ -126,145 +126,15 @@ export class WorkbookReader {
 
     private getIGRF() {
         const sheet = this.workbook.Sheets[this.sbTemplate.mainSheet]
-        const venue = this.sbData.venue
+        const reader = new IgrfReader(this.sbData, this.sbTemplate, this.sbErrors)
 
-        venue.name = this.getExpectedValue(sheet, 'venue.name', 'Venue Name')
-        venue.city = this.getExpectedValue(sheet, 'venue.city', 'Venue City')
-        venue.state = this.getExpectedValue(sheet, 'venue.state', 'Venue State')
-
-        const excelDate = this.getExpectedValue(sheet, 'date', 'Date')
-        const excelTime = this.getExpectedValue(sheet, 'time', 'Time')
-
-        this.sbData.date = getJsDateFromExcel(excelDate)
-        this.sbData.time = getJsTimeFromExcel(excelTime)
-    }
-
-    private getTeams() {
-        teams.forEach((team) => {
-            const teamTemplate = this.sbTemplate.teams[team]
-            const sheet = this.workbook.Sheets[teamTemplate.sheetName]
-
-            this.sbData.teams[team] = {
-                leauge: cellVal(sheet, teamTemplate.league),
-                name: cellVal(sheet, teamTemplate.name),
-                color: cellVal(sheet, teamTemplate.color),
-                persons: [],
-            }
-
-            const teamData = this.sbData.teams[team]
-
-            if (!teamData.color) {
-                this.sbErrors.warnings.missingData.events.push(
-                    `Missing color for ${cap(team)} team.`,
-                )
-            }
-
-            // Extract skater data
-            const firstNameRC = utils.decode_cell(teamTemplate.firstName)
-            const firstNumRC = utils.decode_cell(teamTemplate.firstNumber)
-
-            range(0, teamTemplate.maxNum).forEach((i) => {
-                const nameAddr = getAddressOfRow(i, firstNameRC)
-                const numAddr = getAddressOfRow(i, firstNumRC)
-
-                const skaterNumber = cellVal(sheet, numAddr)
-                const skaterName = cellVal(sheet, nameAddr)
-
-                if (!skaterNumber) {
-                    return
-                }
-
-                teamData.persons.push({
-                    name: skaterName,
-                    number: skaterNumber,
-                })
-
-                this.penalties[`${team}:${skaterNumber}`] = []
-
-            })
-        })
-
-        this.getOfficials()
-    }
-
-    private getOfficials() {
-
-        const sheet = this.workbook.Sheets[this.sbTemplate.teams.officials.sheetName]
-        const template = this.sbTemplate.teams.officials
-
-        const cells: { [index: string]: CellAddress } = {
-            firstName: utils.decode_cell(template.firstName),
-            firstRole: utils.decode_cell(template.firstRole),
-            firstLeague: utils.decode_cell(template.firstLeague),
-            firstCert: utils.decode_cell(template.firstCert),
-        }
-
-        range(0, template.maxNum).forEach((idx) => {
-            const nameAddr = getAddressOfRow(idx, cells.firstName)
-            const roleAddr = getAddressOfRow(idx, cells.firstRole)
-            const leagueAddr = getAddressOfRow(idx, cells.firstLeague)
-            const certAddr = getAddressOfRow(idx, cells.firstCert)
-
-            const name = cellVal(sheet, nameAddr)
-            const role = cellVal(sheet, roleAddr)
-            const league = cellVal(sheet, leagueAddr)
-            const cert = cellVal(sheet, certAddr)
-
-            if (role === undefined) { return }
-
-            const person = {
-                name,
-                roles: [ role ],
-                league,
-                certifications: [],
-            }
-
-            if (cert !== undefined) {
-                person.certifications.push({ level: cert })
-            }
-
-            this.sbData.teams.officials.persons.push(person)
-
-        })
+        reader.parseSheet(sheet)
     }
 
     private getScores() {
         const sheet = this.workbook.Sheets[this.sbTemplate.score.sheetName]
         const scoreReader = new ScoreReader(this.sbData, this.sbTemplate, this.sbErrors, this.warningData)
 
-        scoreReader.parseScoreSheet(sheet)
+        scoreReader.parseSheet(sheet)
     }
-
-    private getExpectedValue(sheet: WorkSheet, field: string, longName: string = null) {
-        const address: string = get(this.sbTemplate, field)
-        const value = cellVal(sheet, address)
-        if (!value && longName) {
-            this.sbErrors.warnings.missingData.events.push(longName)
-        }
-
-        return value
-    }
-
-}
-
-function getJsDateFromExcel(excelDate) {
-    // Helper function to convert Excel date to JS format
-    if (!excelDate) { return undefined }
-
-    return new Date((excelDate - (25567 + 1)) * 86400 * 1000)
-}
-
-function getJsTimeFromExcel(excelTime) {
-    // Helper function to convert Excel time to JS format
-    if (!excelTime) { return undefined }
-
-    const secondsAfterMid = excelTime * 86400
-    const hours = Math.floor(secondsAfterMid / 3600)
-    const remainder = secondsAfterMid % 3600
-    const minutes = Math.floor(remainder / 60)
-    const seconds = remainder % 60
-
-    return `${hours.toString().padStart(2, '0')
-        }:${minutes.toString().padStart(2, '0')
-        }:${seconds.toString().padStart(2, '0')}`
 }

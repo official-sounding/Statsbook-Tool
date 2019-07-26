@@ -11,7 +11,7 @@ export function cellVal(sheet: WorkSheet, address: string) {
     // in the cell if present, and undefined if not.
     const cell: CellObject = sheet[address]
     if (cell && cell.v) {
-        return cell.v
+        return cell.v.toString()
     } else {
         return undefined
     }

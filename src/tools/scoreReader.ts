@@ -33,7 +33,7 @@ export class ScoreReader {
         this.maxJams = this.sbTemplate.score.maxJams
     }
 
-    public parseScoreSheet(sheet: WorkSheet) {
+    public parseSheet(sheet: WorkSheet) {
         forEachPeriodTeam((period, team) => {
             const cells = this.buildFirstRow(period, team)
             const maxTrips = cells.lastTrip.c - cells.firstTrip.c
@@ -303,8 +303,8 @@ export class ScoreReader {
     }
 
     private buildFirstRow(period: string, team: string): CellAddressDict {
-        const fields = ['firstJamNumber', 'firstJammerNumber', 'firstLost', 'firstLead',
-            'firstCall', 'firstInj', 'firstNp', 'firstTrip', 'lastTrip']
+        const fields = ['firstjamNumber', 'firstjammerNumber', 'firstlost', 'firstlead',
+            'firstcall', 'firstinj', 'firstnp', 'firsttrip', 'lasttrip']
 
         return initializeFirstRow(this.sbTemplate, 'score', team, period, fields)
     }

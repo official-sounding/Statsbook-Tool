@@ -189,7 +189,7 @@ export class PenaltyReader {
         })
     }
 
-    private buildFirstRow(period: string, team: string): CellAddressDict {
+    private buildFirstRow(period: period, team: team): CellAddressDict {
         const fields = ['firstNumber', 'firstPenalty', 'firstJam',
         'firstFO', 'firstFOJam', 'benchExpCode', 'benchExpJam']
 

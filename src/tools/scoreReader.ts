@@ -1,11 +1,7 @@
 import { capitalize as cap, countBy, range, trim } from 'lodash'
 import { utils, WorkSheet } from 'xlsx'
 // tslint:disable-next-line: max-line-length
-import { CellAddressDict, cellsForRow, cellVal, forEachPeriodTeam, getAddressOfCol, initializeFirstRow, teams } from './utils'
-
-const jamNumberValidator = /^(\d+|SP|SP\*)$/i
-const spCheck = /^SP\*?$/i
-const mySPCheck = /^SP$/i
+import { CellAddressDict, cellsForRow, cellVal, forEachPeriodTeam, getAddressOfCol, initializeFirstRow, jamNumberValidator, mySPCheck, spCheck, teams } from './utils'
 
 const pointsAndNPCheck = /(\d)\+NP/i
 const ippRe = /(\d)\+(\d)/
@@ -303,7 +299,7 @@ export class ScoreReader {
             })
     }
 
-    private buildFirstRow(period: string, team: string): CellAddressDict {
+    private buildFirstRow(period: period, team: team): CellAddressDict {
         const fields = ['firstJamNumber', 'firstJammerNumber', 'firstLost', 'firstLead',
             'firstCall', 'firstInj', 'firstNp', 'firstTrip', 'lastTrip']
 

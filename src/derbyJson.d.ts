@@ -36,11 +36,12 @@ declare namespace DerbyJson {
 
     interface IEvent {
         event: string,
-        skater: ISkaterRef,
+        skater?: string,
         position?: string,
         number?: number,
         score?: number,
         team?: string,
+        penalty?: string,
         completed?: boolean,
         notes?: IEventNote[]
     }

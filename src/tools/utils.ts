@@ -4,8 +4,12 @@ import { CellAddress, CellObject, utils, WorkSheet } from 'xlsx'
 // tslint:disable-next-line: interface-name
 export interface CellAddressDict { [key: string]: CellAddress }
 
-export const teams = ['home', 'away']
-export const periods = ['1', '2']
+export const teams: team[] = ['home', 'away']
+export const periods: period[] = ['1', '2']
+
+export const jamNumberValidator = /^(\d+|SP|SP\*)$/i
+export const spCheck = /^SP\*?$/i
+export const mySPCheck = /^SP$/i
 
 export function cellVal(sheet: WorkSheet, address: string) {
     // Given a worksheet and a cell address, return the value
@@ -18,7 +22,7 @@ export function cellVal(sheet: WorkSheet, address: string) {
     }
 }
 
-export function forEachPeriodTeam(cb: (period: string, team: string) => void): void {
+export function forEachPeriodTeam(cb: (period: period, team: team) => void): void {
     periods.forEach((period) => teams.forEach((team) => cb(period, team)))
 }
 
@@ -46,7 +50,7 @@ export function getAddressOfCol(colIdx: number, firstCell: CellAddress): string 
 }
 
 // tslint:disable-next-line: max-line-length
-export function initializeFirstRow(template: IStatsbookTemplate, tab: string, team: string, period: string, fields: string[]): CellAddressDict {
+export function initializeFirstRow(template: IStatsbookTemplate, tab: string, team: team, period: period, fields: string[]): CellAddressDict {
     const result: CellAddressDict = {}
 
     fields.reduce((prev, curr) => {

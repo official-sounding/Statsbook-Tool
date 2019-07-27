@@ -15,16 +15,19 @@ export class LineupReader {
     private sbTemplate: IStatsbookTemplate
     private sbErrors: IErrorSummary
     private warningData: IWarningData
+    private boxTripReader: IBoxTripReader
 
     constructor(sbData: DerbyJson.IGame,
                 sbTemplate: IStatsbookTemplate,
                 sbErrors: IErrorSummary,
-                warningData: IWarningData) {
+                warningData: IWarningData,
+                boxTripReader: IBoxTripReader) {
 
         this.sbData = sbData
         this.sbTemplate = sbTemplate
         this.sbErrors = sbErrors
         this.warningData = warningData
+        this.boxTripReader = boxTripReader
     }
 
     public parseSheet(sheet: WorkSheet): void {
@@ -140,6 +143,29 @@ export class LineupReader {
                         position = positions[colIdx]
                     }
 
+                    if (!starPass) {
+                        // Unless this is a star pass, add a
+                        // "lineup" event for that skater with the position
+                        jam.events.push(
+                            {
+                                event: 'lineup',
+                                skater,
+                                position,
+                            })
+                    }
+
+                    range(0, boxCodeCount).forEach((boxColIdx) => {
+                        const boxCol = colIdx * (boxCodeCount + 1) + boxColIdx
+                        const boxAddr = getAddressOfCol(boxCol, utils.decode_cell(rowCells.jammer))
+                        const boxCode = cellVal(sheet, boxAddr)
+
+                        if (!boxCode) {
+                            return
+                        }
+
+                        const events = this.boxTripReader.parseGlyph(boxCode, team, skater)
+
+                    })
                 })
 
             })

@@ -184,7 +184,7 @@ declare interface IErrorDetails {
 
 declare type period = '1' | '2'
 declare type team = 'home' | 'away'
-declare type boxTripEvent = 'enter' | 'exit' | 'continue' | 'injury' | 'error'
+declare type boxTripEvent = 'enter' | 'exit' | 'continue' | 'badContinue' | 'injury' | 'error'
 
 declare interface ISimpleWarningDetails {
     period: string,
@@ -197,6 +197,11 @@ declare interface  IWarningDetails extends ISimpleWarningDetails {
 
 declare interface IBoxTripReader {
     parseGlyph(glyph: string, team: team, skaterNumber: string): IBoxTrip[]
+    stillInBox(team: team, skaterNumber: string): boolean
+
+    badStartErrorKey: string
+    badCompleteErrorKey: string
+    badBtwnJamErrorKey: string
 }
 
 declare interface IBoxTrip {

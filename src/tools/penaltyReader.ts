@@ -27,20 +27,20 @@ export class PenaltyReader {
 
         forEachPeriodTeam((period, team) => {
             const sectionDesc = `Team: ${cap(team)}, Period: ${period}`
-            const maxNum = this.sbTemplate.teams[team].maxNum
-            const maxJam = this.sbData.periods[period].jams.length
+            const maxNum: number = this.sbTemplate.teams[team].maxNum
+            const maxJam: number = this.sbData.periods[period].jams.length
             const firstRow = this.buildFirstRow(period, team)
 
             range(0, maxNum).forEach((rowIdx) => {
                 const row = cellsForRow(rowIdx * 2, firstRow)
                 const skaterNumber = cellVal(sheet, row.number)
 
-                if (skaterNumber === undefined) {
+                if (skaterNumber === undefined || skaterNumber === '') {
                     return
                 }
 
                 // ERROR CHECK: skater on penalty sheet not on the IGRF
-                if (this.sbData.teams[team].persons.find((x) => x.number === skaterNumber)) {
+                if (!this.sbData.teams[team].persons.find((x) => x.number === skaterNumber)) {
                     this.sbErrors.penalties.penaltiesNotOnIGRF.events
                         .push(`${sectionDesc}, Skater: ${skaterNumber}`)
                 }
@@ -67,7 +67,7 @@ export class PenaltyReader {
                     }
 
                     const jnParsed = parseInt(jam)
-                    if (isNaN(jnParsed) || !inRange(jnParsed, 1, maxJam)) {
+                    if (isNaN(jnParsed) || !inRange(jnParsed, 1, this.sbData.periods[period].jams.length + 1)) {
                         this.sbErrors.penalties.penaltyBadJam.events
                             .push(`${sectionDesc}, Skater: ${skaterNumber}, Recorded Jam: ${jam}`)
                         return
@@ -104,7 +104,7 @@ export class PenaltyReader {
                 }
 
                 const foJnParsed = parseInt(foJam)
-                if (isNaN(foJnParsed) || !inRange(foJnParsed, 1, maxJam)) {
+                if (isNaN(foJnParsed) || !inRange(foJnParsed, 1, maxJam + 1)) {
                     this.sbErrors.penalties.foBadJam.events
                         .push(`${sectionDesc}, Skater: ${skaterNumber}, Jam: ${foJam}`)
                     return
@@ -190,7 +190,7 @@ export class PenaltyReader {
     }
 
     private buildFirstRow(period: string, team: string): CellAddressDict {
-        const fields = ['firstnumber', 'firstpenalty', 'firstjam',
+        const fields = ['firstNumber', 'firstPenalty', 'firstJam',
         'firstFO', 'firstFOJam', 'benchExpCode', 'benchExpJam']
 
         return initializeFirstRow(this.sbTemplate, 'penalties', team, period, fields)

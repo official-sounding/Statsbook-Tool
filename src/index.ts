@@ -45,7 +45,7 @@ let sbData: any = {},  // derbyJSON formatted statsbook data
     sbFilename = '',
     warningData: any = {}
 
-const sbTemplate: IStatsbookTemplate = null
+let sbTemplate: IStatsbookTemplate = null
 const teamList = ['home', 'away']
 const anSP = /^sp\*?$/i
 const mySP = /^sp$/i
@@ -55,7 +55,7 @@ ipc.on('do-version-check', (event: any, version: any) => {
     fetch('https://api.github.com/repos/AdamSmasherDerby/Statsbook-Tool/tags')
         .then((result) =>  result.json())
         .then((data) => {
-            const latestVersion = data[0]
+            const latestVersion = data[0].name
             const currentVersion = `v${version}`
             if (latestVersion !== currentVersion) {
                 newVersionWarningBox.innerHTML = `New version available: ${latestVersion} (Current Version: ${version})</BR>` +
@@ -133,6 +133,7 @@ const readSbData = (data, filename) => {
     sbErrors = sbReader.errors
     sbData = sbReader.data
     warningData = sbReader.warnings
+    sbTemplate = sbReader.template
 
     updateFileInfo()
 

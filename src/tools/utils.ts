@@ -1,3 +1,4 @@
+import { camelCase } from 'lodash'
 import { CellAddress, CellObject, utils, WorkSheet } from 'xlsx'
 
 // tslint:disable-next-line: interface-name
@@ -10,7 +11,7 @@ export function cellVal(sheet: WorkSheet, address: string) {
     // Given a worksheet and a cell address, return the value
     // in the cell if present, and undefined if not.
     const cell: CellObject = sheet[address]
-    if (cell && cell.v) {
+    if (cell && (cell.v !== null && cell.v !== undefined)) {
         return cell.v.toString()
     } else {
         return undefined
@@ -24,7 +25,7 @@ export function forEachPeriodTeam(cb: (period: string, team: string) => void): v
 export function cellsForRow(idx: number, firstCells: CellAddressDict): { [key: string]: string } {
     const result: { [key: string]: string } = {}
     Object.keys(firstCells).reduce((prev, curr) => {
-        const key = curr.replace('first', '')
+        const key = camelCase(curr.replace('first', ''))
         prev[key] = getAddressOfRow(idx, firstCells[curr])
         return prev
     }, result)
@@ -49,7 +50,7 @@ export function initializeFirstRow(template: IStatsbookTemplate, tab: string, te
     const result: CellAddressDict = {}
 
     fields.reduce((prev, curr) => {
-        prev[curr] = utils.decode_cell(template[tab][team][period][curr])
+        prev[curr] = utils.decode_cell(template[tab][period][team][curr])
         return prev
     }, result)
 

@@ -1,7 +1,7 @@
 import { capitalize as cap, countBy, range, trim } from 'lodash'
-import { WorkSheet } from 'xlsx/types'
+import { utils, WorkSheet } from 'xlsx'
 // tslint:disable-next-line: max-line-length
-import { CellAddressDict, cellsForRow, cellVal, forEachPeriodTeam, getAddressOfTrip, initializeFirstRow, teams } from './utils'
+import { CellAddressDict, cellsForRow, cellVal, forEachPeriodTeam, getAddressOfCol, initializeFirstRow, teams } from './utils'
 
 const jamNumberValidator = /^(\d+|SP|SP\*)$/i
 const spCheck = /^SP\*?$/i
@@ -39,7 +39,7 @@ export class ScoreReader {
             const maxTrips = cells.lastTrip.c - cells.firstTrip.c
 
             let skaterRef: string = ''
-            const priorJam: DerbyJson.IJam = null
+            let jam: DerbyJson.IJam = null
             let jamIdx = 0
             let tripCount = 1
             let starPass = false
@@ -53,7 +53,7 @@ export class ScoreReader {
                 const lost = cellVal(sheet, rowCells.lost) !== undefined
                 const call = cellVal(sheet, rowCells.call) !== undefined
                 const inj = cellVal(sheet, rowCells.inj) !== undefined
-                const initialCompleted = cellVal(sheet, rowCells.np) !== undefined
+                const initialCompleted = cellVal(sheet, rowCells.np) === undefined
                 const rowDescription =
                 `Team: ${cap(team)}, Period: ${period}, Jam: ${jamNumber}, Jammer: ${skaterNumber || ''}`
 
@@ -75,7 +75,7 @@ export class ScoreReader {
                     starPass = true
                     if (mySPCheck.test(jamNumber)) {
                         // this pushes an event for the prior jammer
-                        priorJam.events.push(
+                        jam.events.push(
                             {
                                 event: 'star pass',
                                 skater: skaterRef,
@@ -83,6 +83,9 @@ export class ScoreReader {
                     }
                     this.starPasses.push({ period, jam: jamIdx })
                 } else {
+                    jamIdx = parseInt(jamNumber) - 1
+                    tripCount = 1
+                    starPass = false
                     if (parseInt(jamNumber) !== (jamIdx + 1)) {
                         this.sbErrors.scores.badJamNumber.events.push(rowDescription)
 
@@ -91,11 +94,9 @@ export class ScoreReader {
                             this.sbData.periods[period].jams[j - 1] = { number: j, events: [] }
                         }
                     }
-
-                    jamIdx = parseInt(jamNumber) - 1
                 }
 
-                let jam: DerbyJson.IJam = this.sbData.periods[period].jams[jamIdx]
+                jam = this.sbData.periods[period].jams[jamIdx]
 
                 if (!jam) {
                     jam = {number: jamIdx + 1, events: []}
@@ -103,7 +104,7 @@ export class ScoreReader {
                 }
 
                 if (skaterNumber &&
-                    this.sbData.teams[team].persons.find((x) => x.number === skaterNumber)) {
+                    !this.sbData.teams[team].persons.find((x) => x.number === skaterNumber)) {
                     // This SHOULD be caught by conditional formatting in Excel, but there
                     // are reports of that breaking sometimes.
                     this.sbErrors.scores.scoresNotOnIGRF.events.push(
@@ -134,10 +135,10 @@ export class ScoreReader {
 
                 let blankTrip = false
                 range(1, maxTrips).forEach((colIdx) => {
-                    const tripAddress = getAddressOfTrip(colIdx, rowCells.firstTrip)
+                    const tripAddress = getAddressOfCol(colIdx - 1 , utils.decode_cell(rowCells.trip))
                     const tripScore = cellVal(sheet, tripAddress)
 
-                    if (!tripScore) {
+                    if (tripScore === undefined) {
                         // ERROR CHECK - no trip score, initial pass completed
                         if (initialCompleted && colIdx === 1 && !starPass) {
                             const nextRow = cellsForRow(jamIdx + 1, cells)
@@ -153,7 +154,7 @@ export class ScoreReader {
                     }
 
                     // ERROR CHECK - points entered for a trip that's already been completed.
-                    if (colIdx <= tripCount) {
+                    if (colIdx + 1 < tripCount) {
                         this.sbErrors.scores.spPointsBothJammers.events.push(rowDescription)
                     }
 
@@ -246,9 +247,9 @@ export class ScoreReader {
 
             if (team === 'away') {
                 this.sbData.periods[period].jams
-                .forEach((jam) => {
-                    const jamDescription =  `Period: ${period}, Jam: ${jam.number}`
-                    const counts = countBy(jam.events, (ev) => ev.event)
+                .forEach((j) => {
+                    const jamDescription =  `Period: ${period}, Jam: ${j.number}`
+                    const counts = countBy(j.events, (ev) => ev.event)
                     if (counts.lead > 1) {
                         this.sbErrors.scores.tooManyLead.events.push(jamDescription)
                     }
@@ -258,7 +259,7 @@ export class ScoreReader {
                     }
 
                     const injuryCount = this.warningData.jamsCalledInjury
-                                        .filter((ev) => ev.period === period && ev.jam === jam.number)
+                                        .filter((ev) => ev.period === period && ev.jam === j.number)
                                         .length
 
                     // ERROR CHECK: Injury box checked for only one team in a jam.
@@ -268,7 +269,7 @@ export class ScoreReader {
 
                     // Push injury event here, so that only one is pushed per jam instead of two
                     if (injuryCount > 1) {
-                        jam.events.push({
+                        j.events.push({
                             event: 'injury',
                         })
                     }
@@ -276,9 +277,9 @@ export class ScoreReader {
                     if (counts.lead === 0) {
                         teams.forEach((teamname) => {
                             // tslint:disable-next-line: max-line-length
-                            const lost = !!jam.events.find((ev) => ev.event === 'lost' && ev.skater.startsWith(teamname))
+                            const lost = !!j.events.find((ev) => ev.event === 'lost' && ev.skater.startsWith(teamname))
                             // tslint:disable-next-line: max-line-length
-                            const points = !!jam.events.find((ev) => ev.event === 'pass' && ev.team === teamname && ev.number > 1)
+                            const points = !!j.events.find((ev) => ev.event === 'pass' && ev.team === teamname && ev.number > 1)
 
                             if (points && !lost) {
                                 this.sbErrors.scores.pointsNoLeadNoLost.events.push(
@@ -303,8 +304,8 @@ export class ScoreReader {
     }
 
     private buildFirstRow(period: string, team: string): CellAddressDict {
-        const fields = ['firstjamNumber', 'firstjammerNumber', 'firstlost', 'firstlead',
-            'firstcall', 'firstinj', 'firstnp', 'firsttrip', 'lasttrip']
+        const fields = ['firstJamNumber', 'firstJammerNumber', 'firstLost', 'firstLead',
+            'firstCall', 'firstInj', 'firstNp', 'firstTrip', 'lastTrip']
 
         return initializeFirstRow(this.sbTemplate, 'score', team, period, fields)
     }

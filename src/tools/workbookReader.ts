@@ -1,13 +1,10 @@
-import { capitalize as cap, get, range } from 'lodash'
-import { CellAddress, utils, WorkBook, WorkSheet } from 'xlsx'
-import { ScoreReader } from './scoreReader'
-import { cellVal, getAddressOfRow, teams } from './utils'
-
-import template2017 from '../../assets/2017statsbook.json'
-import template2018 from '../../assets/2018statsbook.json'
-import errorTemplate from '../../assets/sberrors.json'
+import { WorkBook } from 'xlsx'
+import template2017 from '../assets/2017statsbook.json'
+import template2018 from '../assets/2018statsbook.json'
+import errorTemplate from '../assets/sberrors.json'
 import { IgrfReader } from './igrfReader'
 import { PenaltyReader } from './penaltyReader'
+import { ScoreReader } from './scoreReader'
 
 export class WorkbookReader {
     public static defaultVersion: string = '2018'
@@ -20,16 +17,17 @@ export class WorkbookReader {
     private sbErrors: IErrorSummary
     private sbData: DerbyJson.IGame
     private warningData: IWarningData
-    private penalties: { [playerId: string]: any[] }
 
     constructor(workbook: WorkBook, filename: string) {
         this.workbook = workbook
         this.sbErrors = JSON.parse(JSON.stringify(errorTemplate))
         this.sbFilename = filename
-        this.penalties = {}
         this.parseFile()
     }
 
+    get template(): IStatsbookTemplate {
+        return JSON.parse(JSON.stringify(this.sbTemplate))
+    }
     get summary(): IStatsbookSummary {
         return {
             filename: this.sbFilename,

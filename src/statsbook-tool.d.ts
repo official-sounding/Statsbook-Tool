@@ -184,11 +184,11 @@ declare interface IErrorDetails {
 
 declare type period = '1' | '2'
 declare type team = 'home' | 'away'
-declare type boxTripEvent = 'enter' | 'exit' | 'continue' | 'badContinue' | 'injury' | 'error'
+declare type boxTripEvent = 'enter' | 'exit' | 'enterExit' | 'continue' | 'badContinue' | 'injury' | 'error'
 
 declare interface ISimpleWarningDetails {
-    period: string,
-    team: string,
+    period: period,
+    team: team,
     jam: number
 }
 declare interface  IWarningDetails extends ISimpleWarningDetails {
@@ -196,18 +196,23 @@ declare interface  IWarningDetails extends ISimpleWarningDetails {
 }
 
 declare interface IBoxTripReader {
-    parseGlyph(glyph: string, team: team, skaterNumber: string): IBoxTrip[]
+    parseGlyph(glyph: string, team: team, skaterNumber: string): IBoxTrip
     stillInBox(team: team, skaterNumber: string): boolean
+    removeFromBox(team: team, skaterNumber: string): boolean
+    missingSkaters(team: team, skaterList: string[]): string[]
 
     badStartErrorKey: string
     badCompleteErrorKey: string
+    badContinueErrorKey: string
     badBtwnJamErrorKey: string
+    badBtwnJamCompleteErrorKey: string
 }
 
 declare interface IBoxTrip {
     eventType: boxTripEvent,
     errorKey?: string,
-    note?: string
+    note?: string,
+    betweenJams?: boolean
 }
 
 declare interface IWarningData {

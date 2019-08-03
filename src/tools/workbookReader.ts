@@ -5,6 +5,8 @@ import errorTemplate from '../assets/sberrors.json'
 import { IgrfReader } from './igrfReader'
 import { PenaltyReader } from './penaltyReader'
 import { ScoreReader } from './scoreReader'
+import { LineupReader } from './lineupReader.js';
+import { BoxTripReader2019, BoxTripReader2018 } from './boxTripReader.js';
 
 export class WorkbookReader {
     public static defaultVersion: string = '2018'
@@ -17,6 +19,7 @@ export class WorkbookReader {
     private sbErrors: IErrorSummary
     private sbData: DerbyJson.IGame
     private warningData: IWarningData
+    private boxTripReader: IBoxTripReader
 
     constructor(workbook: WorkBook, filename: string) {
         this.workbook = workbook
@@ -90,6 +93,7 @@ export class WorkbookReader {
         this.getIGRF()
         this.getScores()
         this.getPenalties()
+        this.getLineups()
     }
 
     private getVersion(): string {
@@ -110,10 +114,15 @@ export class WorkbookReader {
 
         switch (this.sbVersion) {
             case '2019':
+                this.boxTripReader = new BoxTripReader2019()
+                result = template2018
+                break
             case '2018':
+                this.boxTripReader = new BoxTripReader2018()
                 result = template2018
                 break
             case '2017':
+                this.boxTripReader = new BoxTripReader2018()
                 result = template2017
                 break
             default:
@@ -142,5 +151,14 @@ export class WorkbookReader {
         const penaltyReader = new PenaltyReader(this.sbData, this.sbTemplate, this.sbErrors, this.warningData)
 
         penaltyReader.parseSheet(sheet)
+    }
+
+    private getLineups() {
+        const sheet = this.workbook.Sheets[this.sbTemplate.lineups.sheetName]
+        const lineupReader = new LineupReader(this.sbData,
+                                              this.sbTemplate,
+                                              this.sbErrors,
+                                              this.warningData,
+                                              this.boxTripReader)
     }
 }

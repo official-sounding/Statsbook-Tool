@@ -37,7 +37,7 @@ export class LineupReader {
         forEachPeriodTeam((period, team) => {
             let jamIdx = 0
             let starPass = false
-            let skaterNumbers = []
+            let skaterNumbers: string[] = []
 
             const firstCells = this.buildFirstRow(period, team)
             const sectionDesc = `Team: ${cap(team)}, Period: ${period}`
@@ -154,6 +154,21 @@ export class LineupReader {
                             })
                     }
 
+                    function hasPenalty(btwnJams: boolean): boolean {
+                        if (btwnJams) {
+                            return !!thisJamPenalties.find((x) => x.skater === skater)
+                                || !!priorJamPenalties.find((x) => x.skater === skater)
+                        } else {
+                            return !!thisJamPenalties.find((x) => x.skater === skater)
+                        }
+                    }
+
+                    const priorFoulout = !!this.warningData.foulouts.find((x) =>
+                                    (x.period === period && x.jam < jamIdx && x.skater === skater) ||
+                                    (x.period < period && x.skater === skater))
+
+                    let noCodes = true
+
                     range(0, boxCodeCount).forEach((boxColIdx) => {
                         const boxCol = colIdx * (boxCodeCount + 1) + boxColIdx
                         const boxAddr = getAddressOfCol(boxCol, utils.decode_cell(rowCells.jammer))
@@ -161,16 +176,158 @@ export class LineupReader {
 
                         if (!boxCode) {
                             return
+                        } else {
+                            noCodes = false
                         }
 
-                        const events = this.boxTripReader.parseGlyph(boxCode, team, skater)
+                        const event = this.boxTripReader.parseGlyph(boxCode, team, skater)
 
+                        switch (event.eventType) {
+                            case 'enter':
+                                this.enterBox(jam, skater, event.note)
+                                if (!hasPenalty(event.betweenJams)) {
+                                    const errKey = event.betweenJams ?
+                                                        this.boxTripReader.badStartErrorKey :
+                                                        this.boxTripReader.badBtwnJamErrorKey
+                                    this.sbErrors
+                                        .lineups[errKey]
+                                        .events.push(`${sectionDesc}, Jam: ${jamIdx}, Skater: ${skaterNumber}`)
+
+                                    this.warningData.badStarts.push({
+                                        period,
+                                        team,
+                                        skater,
+                                        jam: jamIdx,
+                                    })
+                                }
+                                break
+                            case 'exit':
+                                this.exitBox(jam, skater, event.note)
+                                break
+                            case 'enterExit':
+                                this.enterBox(jam, skater, event.note)
+                                this.exitBox(jam, skater, event.note)
+                                if (!hasPenalty(event.betweenJams)) {
+                                    const errKey = event.betweenJams ?
+                                                        this.boxTripReader.badCompleteErrorKey :
+                                                        this.boxTripReader.badBtwnJamCompleteErrorKey
+
+                                    this.sbErrors
+                                        .lineups[errKey]
+                                        .events.push(`${sectionDesc}, Jam: ${jamIdx}, Skater: ${skaterNumber}`)
+
+                                    this.warningData.badContinues.push({
+                                        skater,
+                                        team,
+                                        period,
+                                        jam: jamIdx,
+                                    })
+                                }
+                                break
+                            case 'badContinue':
+                                if (priorFoulout) {
+                                    this.sbErrors.lineups.foInBox.events
+                                        .push(`${sectionDesc}, Jam: ${jamIdx}, Skater: ${skaterNumber}`)
+                                } else {
+                                    const errKey = this.boxTripReader.badContinueErrorKey
+
+                                    this.sbErrors
+                                        .lineups[errKey]
+                                        .events.push(`${sectionDesc}, Jam: ${jamIdx}, Skater: ${skaterNumber}`)
+                                }
+                                this.warningData.badContinues.push({
+                                    skater,
+                                    team,
+                                    period,
+                                    jam: jamIdx,
+                                })
+                                break
+                            case 'injury':
+                                this.warningData.lineupThree.push({
+                                    skater,
+                                    team,
+                                    period,
+                                    jam: jamIdx,
+                                })
+                                break
+                            case 'error':
+                                this.sbErrors
+                                    .lineups[event.errorKey]
+                                    .events.push(`${sectionDesc}, Jam: ${jamIdx}, Skater: ${skaterNumber}`)
+                                break
+                        }
                     })
+
+                    if (this.boxTripReader.stillInBox(team, skater) && noCodes) {
+                        this.sbErrors.lineups.seatedNoCode
+                        .events.push(`${sectionDesc}, Jam: ${jamIdx}, Skater: ${skaterNumber}`)
+                    }
                 })
+
+                // Remove fouled out skaters from the box
+                this.warningData.foulouts
+                    .filter((x) => x.period === period && x.team === team && x.jam === jamIdx)
+                    .forEach((fo) => this.boxTripReader.removeFromBox(fo.team, fo.skater))
+
+                // Remove Expelled skaters from the box
+                this.warningData.expulsions
+                    .filter((x) => x.period === period && x.team === team && x.jam === jamIdx)
+                    .forEach((fo) => this.boxTripReader.removeFromBox(fo.team, fo.skater))
+
+                // Skaters in the box not listed on the lineup for this jam
+                this.boxTripReader.missingSkaters(team, skaterNumbers)
+                    .forEach((missing) => {
+                        const missingNumber = missing.slice(5)
+
+                        this.sbErrors.lineups.seatedNotLinedUp.events
+                        .push(`${sectionDesc}, Jam: ${jamNumber}, Skater: ${missingNumber}`)
+
+                        this.warningData.noExits.push({
+                            team,
+                            period,
+                            jam: jamIdx,
+                            skater: missing,
+                        })
+                    })
+
+                thisJamPenalties
+                    .filter((p) => !skaterNumbers.includes(p.skater))
+                    .forEach((missing) => {
+                        const missingNumber = missing.skater.slice(5)
+
+                        this.sbErrors.penalties.penaltyNoLineup.events
+                        .push(`${sectionDesc}, Jam: ${jamNumber}, Skater: ${missingNumber}`)
+                    })
 
             })
         })
 
+    }
+
+    private enterBox(jam: DerbyJson.IJam, skater: string, note: string = null) {
+        const event: DerbyJson.IEvent = {
+            event: 'enter box',
+            skater,
+        }
+
+        if (note) {
+            event.notes = [{ note }]
+        }
+
+        jam.events.push(event)
+    }
+
+    private exitBox(jam: DerbyJson.IJam, skater: string, note: string = null) {
+        const event: DerbyJson.IEvent = {
+            event: 'exit box',
+            skater,
+        }
+
+        if (note) {
+            event.notes = [{ note }]
+        }
+
+        jam.events.push(event)
     }
 
     private buildFirstRow(period: period, team: team): CellAddressDict {

@@ -137,7 +137,6 @@ const readSbData = (data, filename) => {
 
     updateFileInfo()
 
-    readLineups(workbook)
     errorCheck()
     warningCheck()
 

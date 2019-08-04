@@ -1,4 +1,9 @@
 declare namespace DerbyJson {
+    type eventName = 'line up' | 'pack lap' | 'penalty' | 'pass' |
+    'star pass' | 'action' | 'error' | 'lead' | 'lost lead' | 'call' |
+    'enter box' | 'exit box' | 'box time' | 'leave track' | 'return track' | 
+    'injury' | 'note' | 'expulsion'
+
     interface IGame {
         version: string;
         /**
@@ -35,12 +40,12 @@ declare namespace DerbyJson {
     }
 
     interface IEvent {
-        event: string,
+        event: eventName,
         skater?: string,
         position?: string,
         number?: number,
         score?: number,
-        team?: string,
+        team?: team,
         penalty?: string,
         completed?: boolean,
         notes?: IEventNote[]

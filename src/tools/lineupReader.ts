@@ -148,7 +148,7 @@ export class LineupReader {
                         // "lineup" event for that skater with the position
                         jam.events.push(
                             {
-                                event: 'lineup',
+                                event: 'line up',
                                 skater,
                                 position,
                             })

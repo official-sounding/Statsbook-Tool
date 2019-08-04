@@ -206,7 +206,7 @@ export class ScoreReader {
 
                 if (lost) {
                     jam.events.push({
-                        event: 'lost',
+                        event: 'lost lead',
                         skater: skaterRef,
                     })
 
@@ -273,7 +273,7 @@ export class ScoreReader {
                     if (counts.lead === 0) {
                         teams.forEach((teamname) => {
                             // tslint:disable-next-line: max-line-length
-                            const lost = !!j.events.find((ev) => ev.event === 'lost' && ev.skater.startsWith(teamname))
+                            const lost = !!j.events.find((ev) => ev.event === 'lost lead' && ev.skater.startsWith(teamname))
                             // tslint:disable-next-line: max-line-length
                             const points = !!j.events.find((ev) => ev.event === 'pass' && ev.team === teamname && ev.number > 1)
 

@@ -41,7 +41,7 @@ export class IgrfReader {
             const teamTemplate = this.sbTemplate.teams[team]
 
             this.sbData.teams[team] = {
-                leauge: cellVal(sheet, teamTemplate.league),
+                league: cellVal(sheet, teamTemplate.league),
                 name: cellVal(sheet, teamTemplate.name),
                 color: cellVal(sheet, teamTemplate.color),
                 persons: [],

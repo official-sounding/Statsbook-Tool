@@ -2,11 +2,11 @@ import { WorkBook } from 'xlsx'
 import template2017 from '../assets/2017statsbook.json'
 import template2018 from '../assets/2018statsbook.json'
 import errorTemplate from '../assets/sberrors.json'
+import { BoxTripReader2018, BoxTripReader2019 } from './boxTripReader.js'
 import { IgrfReader } from './igrfReader'
+import { LineupReader } from './lineupReader.js'
 import { PenaltyReader } from './penaltyReader'
 import { ScoreReader } from './scoreReader'
-import { LineupReader } from './lineupReader.js';
-import { BoxTripReader2019, BoxTripReader2018 } from './boxTripReader.js';
 
 export class WorkbookReader {
     public static defaultVersion: string = '2018'
@@ -160,5 +160,7 @@ export class WorkbookReader {
                                               this.sbErrors,
                                               this.warningData,
                                               this.boxTripReader)
+
+        lineupReader.parseSheet(sheet)
     }
 }

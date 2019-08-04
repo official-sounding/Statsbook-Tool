@@ -170,7 +170,7 @@ export class LineupReader {
                     let noCodes = true
 
                     range(0, boxCodeCount).forEach((boxColIdx) => {
-                        const boxCol = colIdx * (boxCodeCount + 1) + boxColIdx
+                        const boxCol = colIdx * (boxCodeCount + 1) + (boxColIdx + 1)
                         const boxAddr = getAddressOfCol(boxCol, utils.decode_cell(rowCells.jammer))
                         const boxCode = cellVal(sheet, boxAddr)
 
@@ -333,6 +333,6 @@ export class LineupReader {
     private buildFirstRow(period: period, team: team): CellAddressDict {
         const fields = ['firstJamNumber', 'firstNoPivot', 'firstJammer']
 
-        return initializeFirstRow(this.sbTemplate, 'score', team, period, fields)
+        return initializeFirstRow(this.sbTemplate, 'lineups', team, period, fields)
     }
 }

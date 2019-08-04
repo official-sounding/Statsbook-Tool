@@ -67,9 +67,12 @@ declare namespace DerbyJson {
         league?: string;
         level?: "All Star" | "B" | "C" | "Rec" | "Officials" | "Home" | "Adhoc";
         date?: string;
-        color?: {
-          [k: string]: any;
-        };
+        color?: string;
+        // DerbyJSON spec has a "coloring object" here
+        // but doesn't specify it's shape
+        // color?: {
+        //   [k: string]: any;
+        // };
         logo?: Logo;
         persons?: IPerson[];
     }

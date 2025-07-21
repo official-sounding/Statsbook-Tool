@@ -294,7 +294,7 @@ ipc.on('error-thrown', (event, msg, url, lineNo, columnNo) => {
         URL: ${url}
         Line Number: ${lineNo}
         Column Number: ${columnNo}
-        Does this help?  It probably doesn't help.`
+        Does this help?  It probably doesn't help. This might help: Have you already opened this file in Excel and then saved it? If not, try doing that and then running the checker again.`
     })
 })
 

@@ -1499,9 +1499,8 @@ let readLineups = (workbook) => {
 
                                 // ERROR CHECK: Skater enters the box during the jam
                                 // without a penalty in the current jam.
-                                if(thisJamPenalties.find(
-                                    x => x.skater == skater
-                                ) == undefined){
+                                if(thisJamPenalties.find(x => x.skater == skater) == undefined
+                                    && priorJamPenalties.find(x => x.skater == skater) == undefined){
                                     sbErrors.lineups.dashNoPenalty.events.push(
                                         `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`
                                     )
@@ -1514,9 +1513,8 @@ let readLineups = (workbook) => {
 
                                 // ERROR CHECK: Skater enters the box during the jam
                                 // without a penalty in the current jam.
-                                if(thisJamPenalties.find(
-                                    x => x.skater == skater
-                                ) == undefined){
+                                if(thisJamPenalties.find(x => x.skater == skater) == undefined
+                                    && priorJamPenalties.find(x => x.skater == skater) == undefined){
                                     sbErrors.lineups.plusNoPenalty.events.push(
                                         `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`
                                     )

@@ -44,6 +44,8 @@ SHASUMS256.txt
 **/package-lock.json
 **/yarn.lock
 /ignore/
+.yarn/
+.yarnrc.yml
 
 # npm package
 /npm/dist

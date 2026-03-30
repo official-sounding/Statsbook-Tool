@@ -178,3 +178,6 @@ Flamingo icon from http://www.iconsmind.com
     * Improve support for NEWER versions.
     * Add check for uncalculated spreadsheet.
     * Include warning about Google Sheet permissions.
+* 3.2.1 - March 29, 2024
+    * Update generic error message to remind folks to open the statsbook in Excel first.
+    * Correctly handle the case of a skater in queue at the start of the jam.

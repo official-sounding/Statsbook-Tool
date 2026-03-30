@@ -1,6 +1,6 @@
 {
   "name": "statsbooktool",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "A tool for error checking WFTDA Statsbooks",
   "main": "main.js",
   "author": "Adam Smasher (Daniel Alt) <dan@fnerk.com>",
@@ -78,5 +78,6 @@
     "nsis": {
       "license": "LICENSE"
     }
-  }
+  },
+  "packageManager": "yarn@4.13.0"
 }

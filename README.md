@@ -181,3 +181,5 @@ Flamingo icon from http://www.iconsmind.com
 * 3.2.1 - March 29, 2024
     * Update generic error message to remind folks to open the statsbook in Excel first.
     * Correctly handle the case of a skater in queue at the start of the jam.
+* 3.2.2 - April 12, 2024
+    * Supress error for points without lead or lost for overtime jams when "Overtime Jam" is entered as a comment by CRG. (Note that I can't figure out how to enter this comment manually, so correctly entered manual overtime jams will still trip this error.)

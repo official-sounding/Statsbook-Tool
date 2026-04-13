@@ -508,6 +508,7 @@ let readScores = (workbook) => {
                 let blankTrip = false
                 let isLost = false
                 let isLead = false
+                let isOvertime = false
 
                 // increment addresses
                 jamAddress.r = cells.firstJamNumber.r + l
@@ -567,12 +568,13 @@ let readScores = (workbook) => {
                     jam = parseInt(jamNumber.v)
                     trip = 1
                     starPass = false
+                    isOvertime = jamNumber.hasOwnProperty("c") && jamNumber.c[0].t=="Overtime Jam"
                 }
 
                 // If there isn't currently a numbered object for this jam, create it
                 // Note that while the "number" field is one indexed, the jams array itself is zero indexed
                 if (!sbData.periods[pstring].jams.find(o => o.number === jam)){
-                    sbData.periods[pstring].jams[jam-1] = {number: jam, events: []}
+                    sbData.periods[pstring].jams[jam-1] = {number: jam, isOvertime: isOvertime, events: []}
                 }
 
                 // Process trips.
@@ -849,7 +851,7 @@ let readScores = (workbook) => {
                     let scoreTrip = sbData.periods[period].jams[j].events.find(
                         x => x.event == 'pass' && x.team == teamList[t] && x.number > 1
                     )
-                    if (scoreTrip != undefined && isLost == undefined){
+                    if (scoreTrip != undefined && isLost == undefined && !sbData.periods[period].jams[j].isOvertime){
                         sbErrors.scores.pointsNoLeadNoLost.events.push(
                             `Team: ${ucFirst(teamList[t])}, Period: ${period}, Jam: ${jam}`
                         )

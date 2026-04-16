@@ -6,9 +6,10 @@ const _ = require('lodash')
 const { remote } = require('electron')
 const { Menu, MenuItem } = remote
 const mousetrap = require('mousetrap')
-const fs = require('fs')
-const request = require('request')
 var validURL = require('valid-url')
+
+const errorManager = require('./utils/errorManager');
+const fileManager = require('./utils/fileManager');
 
 const download = require('./tools/download')
 
@@ -39,20 +40,13 @@ window.addEventListener('contextmenu', (e) => {
 }, false)
 
 // Template Files
-let template2018 = require('../assets/2018statsbook.json')
-let template2017 = require('../assets/2017statsbook.json')
-let template2023jrda = require('../assets/2023jrda.json')
 let sbErrorTemplate = require('../assets/sberrors.json')
-//const { load } = require('npm')
 
 // Globals
 let sbData = {},  // derbyJSON formatted statsbook data
-    sbTemplate = {},
     sbErrors = {},
     penalties = {},
     starPasses = [],
-    sbFilename = '',
-    sbVersion = '',
     warningData = {},
     sbFile = new File([''],''),
     googleSheet = ''
@@ -129,29 +123,18 @@ ipc.on('load-google-sheet', (event, statsbookURL) => {
     loadGoogleSheet(googleSheet)
 }) 
 
-let loadGoogleSheet = (statsbookURL) => {
-    request.get(statsbookURL, { encoding: null }, function (err, res, data) {
-        if (err || res.statusCode != 200) {
-            fileInfoBox.innerHTML = `Unable to load file. Error: ${err}`
-            return
-        }
-        const buf = Buffer.from(data)
-        const workbook = XLSX.read(buf)
-      
-        readSbData(workbook)
-    })
+const loadGoogleSheet = async (statsbookURL) => {
+    await fileManager.loadFromGoogleSheet(statsbookURL);
+    readSbData();
 }
 
 
-let makeReader = (sbFile) => {
-    sbFilename = sbFile.name
-    let data = fs.readFileSync(sbFile.path)
-    data = new Uint8Array(data)
-    var workbook = XLSX.read(data, {type: 'array'})
-    readSbData(workbook)
+const makeReader = (sbFile) => {
+    fileManager.loadFromFileSystem(sbFile);
+    readSbData();
 }
 
-let readSbData = (workbook) => {
+let readSbData = () => {
     // Reinitialize globals
     sbData = {}
     sbErrors = JSON.parse(JSON.stringify(sbErrorTemplate))
@@ -170,17 +153,16 @@ let readSbData = (workbook) => {
     }
 
     // Read Statsbook
-    getVersion(workbook)
-    readIGRF(workbook)
+    readIGRF()
     for (var i in teamList){
-        readTeam(workbook, teamList[i])
+        readTeam(teamList[i])
     }
     updateFileInfo()
-    readOfficials(workbook)
+    readOfficials()
     sbData.periods = {'1': {jams: []}, '2': {jams: []}}
-    readScores(workbook)
-    readPenalties(workbook)
-    readLineups(workbook)
+    readScores()
+    readPenalties()
+    readLineups()
     errorCheck()
     warningCheck()
 
@@ -203,8 +185,8 @@ let readSbData = (workbook) => {
 let updateFileInfo = () => {
     // Update the "File Information Box"
     // Update File Information Box
-    fileInfoBox.innerHTML = `<strong>Filename:</strong>  <span id="loadedFile">${sbFilename}</span><br>`
-    fileInfoBox.innerHTML += `<strong>SB Version:</strong> ${sbVersion}<br>`
+    fileInfoBox.innerHTML = `<strong>Filename:</strong>  <span id="loadedFile">${fileManager.sbFilename}</span><br>`
+    fileInfoBox.innerHTML += `<strong>SB Version:</strong> ${fileManager.sbVersion}<br>`
     fileInfoBox.innerHTML += `<strong>Game Date:</strong> ${moment.utc(sbData.date).format('MMMM DD, YYYY')}<br>`
     fileInfoBox.innerHTML += `<strong>Team 1:</strong> ${sbData.teams['home'].league || ''} ${sbData.teams['home'].name}<br>`
     fileInfoBox.innerHTML += `<strong>Team 2:</strong> ${sbData.teams['away'].league || ''} ${sbData.teams['away'].name}<br>`
@@ -230,54 +212,7 @@ let createRefreshButton = () => {
     }
 }
 
-let getVersion = (workbook) => {
-    // Determine version of Statsbook file.
-
-    let currentVersion = '2024'
-    let currentJRDAVersion = '2024jrda'
-    let defaultVersion = '2018'
-    let sheet = workbook.Sheets['Read Me']
-    let versionText = (sheet ? sheet['A3'].v : defaultVersion)
-    let versionRe = /(\d){4}/
-    sbVersion = versionRe.exec(versionText)[0]
-    if (versionText.toLowerCase().includes('jrda')) {
-        sbVersion = sbVersion.concat('jrda')
-    }
-
-    // Warning check: outdated statsbook version
-    // Note that this will ALSO fire if the statsbook version is NEWER.
-    if (sbVersion < currentVersion){
-        sbErrors.warnings.oldStatsbookVersion.events.push(
-            `This File: ${sbVersion}  Current Preferred Version: ${currentVersion} `
-        )
-    }
-
-    // Check for NEWER statsbook version
-    if (sbVersion > currentVersion){
-        sbVersion.includes('jrda') ? sbVersion = currentJRDAVersion : sbVersion = currentVersion
-    }
-
-    switch (sbVersion){
-    case '2024jrda':
-    case '2023jrda':
-        sbTemplate = template2023jrda
-        currentVersion = currentJRDAVersion
-        break
-    case '2024':
-    case '2019':
-    case '2018':
-        sbTemplate = template2018
-        break
-    case '2017':
-        sbTemplate = template2017
-        break
-    default:
-        sbTemplate = {}
-    }
-
-}
-
-let readIGRF = (workbook) => {
+const readIGRF = () => {
     // read IGRF data into the sbData file
 
     let getJsDateFromExcel = (excelDate) => {
@@ -301,23 +236,24 @@ let readIGRF = (workbook) => {
         }:${seconds.toString().padStart(2,'0')}`)
     }
 
-    let sheet = workbook.Sheets[sbTemplate.mainSheet]
+    const sheet = fileManager.getSheet(fileManager.template.mainSheet);
+
     sbData.venue = {}
-    sbData.venue.name = cellVal(sheet,sbTemplate.venue.name)
-    sbData.venue.city = cellVal(sheet,sbTemplate.venue.city)
-    sbData.venue.state = cellVal(sheet,sbTemplate.venue.state)
+    sbData.venue.name = sheet.cellVal(fileManager.template.venue.name)
+    sbData.venue.city = sheet.cellVal(fileManager.template.venue.city)
+    sbData.venue.state = sheet.cellVal(fileManager.template.venue.state)
 
     // Deal with the fact that Date and Time could be strings or 
     // Excel date/time values.
 
-    let date = _.get(sheet, sbTemplate.date)
+    const date = sheet.rawVal(fileManager.template.date);
     if (date.t == 'n') {
         sbData.date = getJsDateFromExcel(date.v)
     } else if (date.t == 's') {
         sbData.date = new Date (date.v.slice(0,4),date.v.slice(5,7),date.v.slice(8,10))
     }
     
-    let time = _.get(sheet, sbTemplate.time)
+    let time = sheet.rawVal(fileManager.template.time)
     if (!time || !time.hasOwnProperty('t')){
         sbData.time = '' // Fail gracefully if time is undefined
     } else {
@@ -345,7 +281,8 @@ let readIGRF = (workbook) => {
 
 }
 
-let readTeam = (workbook,team) => {
+let readTeam = (team) => {
+
 // team should be "home" or "away"
     let name_address = {c:0,r:0},
         num_address = {c:0,r:0},
@@ -354,16 +291,17 @@ let readTeam = (workbook,team) => {
         skaterNameObject = {},
         skaterName = '',
         skaterNumber = '',
-        skaterData = {},
-        sheet = workbook.Sheets[sbTemplate.teams[team].sheetName]
+        skaterData = {};
+    
+    const sheet = fileManager.getSheet(fileManager.template.teams[team].sheetName);
 
 
     // Extract general team data
     if (!sbData.hasOwnProperty('teams')){sbData.teams = {}}
     sbData.teams[team] = {}
-    sbData.teams[team].league = cellVal(sheet,sbTemplate.teams[team].league)
-    sbData.teams[team].name = cellVal(sheet,sbTemplate.teams[team].name)
-    sbData.teams[team].color = cellVal(sheet,sbTemplate.teams[team].color)
+    sbData.teams[team].league = sheet.cellVal(fileManager.template.teams[team].league)
+    sbData.teams[team].name = sheet.cellVal(fileManager.template.teams[team].name)
+    sbData.teams[team].color = sheet.cellVal(fileManager.template.teams[team].color)
 
     if(!sbData.teams[team].color){
         sbErrors.warnings.missingData.events.push(
@@ -372,11 +310,11 @@ let readTeam = (workbook,team) => {
     }
 
     // Extract skater data
-    firstNameAddress = XLSX.utils.decode_cell(sbTemplate.teams[team].firstName)
-    firstNumAddress = XLSX.utils.decode_cell(sbTemplate.teams[team].firstNumber)
+    firstNameAddress = XLSX.utils.decode_cell(fileManager.template.teams[team].firstName)
+    firstNumAddress = XLSX.utils.decode_cell(fileManager.template.teams[team].firstNumber)
     name_address.c = firstNameAddress.c
     num_address.c = firstNumAddress.c
-    let maxNum = sbTemplate.teams[team].maxNum
+    let maxNum = fileManager.template.teams[team].maxNum
     sbData.teams[team].persons=[]
 
     for (var i = 0; i<maxNum; i++) {
@@ -384,11 +322,11 @@ let readTeam = (workbook,team) => {
         name_address.r = firstNameAddress.r + i
         num_address.r = firstNumAddress.r + i
 
-        skaterNumber = sheet[XLSX.utils.encode_cell(num_address)]
+        skaterNumber = sheet.rawVal(XLSX.utils.encode_cell(num_address));
         if (skaterNumber == undefined || skaterNumber.v == undefined) {continue}
 
-        skaterNameObject = sheet[XLSX.utils.encode_cell(name_address)]
-        skaterName = (_.get(skaterNameObject,'v') == undefined ? '' : skaterNameObject.v)
+        skaterNameObject = sheet.rawVal(XLSX.utils.encode_cell(name_address));
+        skaterName = (skaterNameObject?.v === undefined ? '' : skaterNameObject.v)
         skaterData = {name: skaterName, number: skaterNumber.v}
         sbData.teams[team].persons.push(skaterData)
         penalties[team + ':' + skaterNumber.v] = []
@@ -397,12 +335,13 @@ let readTeam = (workbook,team) => {
 
 }
 
-let readOfficials = (workbook) => {
+const readOfficials = () => {
 // Read in officials' data
 
-    let props = ['firstName','firstRole','firstLeague','firstCert'],
-        sheet = workbook.Sheets[sbTemplate.teams.officials.sheetName],
-        maxNum = sbTemplate.teams.officials.maxNum,
+
+    const props = ['firstName','firstRole','firstLeague','firstCert'],
+        sheet = fileManager.getSheet(fileManager.template.teams.officials.sheetName),
+        maxNum = fileManager.template.teams.officials.maxNum,
         nameAddress = {},
         roleAddress = {},
         leagueAddress = {},
@@ -412,9 +351,9 @@ let readOfficials = (workbook) => {
     sbData.teams.officials.persons=[]
 
     let cells = {}
-    for (i in props){
+    for (let i in props){
         cells[props[i]] = XLSX.utils.decode_cell(
-            sbTemplate.teams.officials[props[i]]
+            fileManager.template.teams.officials[props[i]]
         )
     }
 
@@ -423,25 +362,25 @@ let readOfficials = (workbook) => {
     leagueAddress.c = cells.firstLeague.c
     certAddress.c = cells.firstCert.c
 
-    for (var i = 0; i<maxNum; i++) {
+    for (let i = 0; i<maxNum; i++) {
         nameAddress.r = cells.firstName.r + i
         roleAddress.r = cells.firstRole.r + i
         leagueAddress.r = cells.firstLeague.r + i
         certAddress.r = cells.firstCert.r + i
 
         // Require presence of both a name and a role to record a line:
-        let offName = sheet[XLSX.utils.encode_cell(nameAddress)]
-        let offRole = sheet[XLSX.utils.encode_cell(roleAddress)]
+        let offName = sheet.rawVal(XLSX.utils.encode_cell(nameAddress))
+        let offRole = sheet.rawVal(XLSX.utils.encode_cell(roleAddress))
         if (offRole == undefined || offName == undefined) {continue}
 
         let offData = {name: offName.v, roles: [offRole.v]}
 
         // Also record league and cert if present
-        let offLeague = sheet[XLSX.utils.encode_cell(leagueAddress)]
+        let offLeague = sheet.rawVal(XLSX.utils.encode_cell(leagueAddress))
         if (offLeague != undefined) {
             offData.league = offLeague.v
         }
-        let offCert = sheet[XLSX.utils.encode_cell(certAddress)]
+        let offCert = sheet.rawVal(XLSX.utils.encode_cell(certAddress))
         if (offCert != undefined) {
             offData.certifications = [{level: offCert.v}]
         }
@@ -451,12 +390,11 @@ let readOfficials = (workbook) => {
 
 }
 
-let readScores = (workbook) => {
+let readScores = () => {
 // Given a workbook, extract the information from the score tab
-
+    const sheet = fileManager.getSheet(fileManager.template.score.sheetName);
     let cells = {},
-        maxJams = sbTemplate.score.maxJams,
-        sheet = workbook.Sheets[sbTemplate.score.sheetName],
+        maxJams = fileManager.template.score.maxJams,
         jamAddress = {},
         jammerAddress = {},
         jamNumber = {},
@@ -521,16 +459,16 @@ let readScores = (workbook) => {
                 npAddress.r = cells.firstNp.r + l
 
                 // determine current jam number
-                jamNumber = sheet[XLSX.utils.encode_cell(jamAddress)]
+                jamNumber = sheet.rawVal(XLSX.utils.encode_cell(jamAddress))
 
                 // if we're out of jams, stop
                 if (
-                    _.get(jamNumber,'v') == undefined ||
+                    jamNumber?.v == undefined ||
                     /^\s+$/.test(jamNumber.v)
                 ) { break }
 
                 // Test for invalid jam number, throw error and stop
-                if (!jamNoRe.test(_.trim(jamNumber.v))){
+                if (!jamNoRe.test(jamNumber.v?.trim())){
                     throw new Error(`Invalid Jam Number: ${jamNumber.v}`)
                 }
 
@@ -583,11 +521,11 @@ let readScores = (workbook) => {
                 let skaterNum = ' '
 
                 // Check for no initial pass box checked
-                let np = _.get(sheet[XLSX.utils.encode_cell(npAddress)],'v')
+                let np = sheet.getVal(XLSX.utils.encode_cell(npAddress));
                 let initialCompleted = ((np == undefined || np == '') ? 'yes' : 'no')
 
-                if(sheet[XLSX.utils.encode_cell(jammerAddress)] != undefined){
-                    skaterNum = sheet[XLSX.utils.encode_cell(jammerAddress)].v
+                if(sheet.rawVal(XLSX.utils.encode_cell(jammerAddress)) != undefined){
+                    skaterNum = sheet.rawVal(XLSX.utils.encode_cell(jammerAddress)).v
                 }
 
                 // ERROR CHECK: Skater on score sheet not on the IGRF
@@ -646,15 +584,15 @@ let readScores = (workbook) => {
                 // Check for subsequent trips, and add additional pass objects
                 for (let t=2; t < maxTrips + 2; t++){
                     tripAddress.c = cells.firstTrip.c + t - 2
-                    let tripScore = sheet[XLSX.utils.encode_cell(tripAddress)]
+                    let tripScore = sheet.rawVal(XLSX.utils.encode_cell(tripAddress))
 
                     if (tripScore == undefined){
 
                         // ERROR CHECK - no trip score, initial pass completed
                         if (initialCompleted == 'yes' && t == 2 && !starPass){
-                            let nextJamNumber = sheet[XLSX.utils.encode_cell({
-                                r: jamAddress.r + 1, c: jamAddress.c})]
-                            if(_.get(nextJamNumber,'v') == 'SP'){
+                            let nextJamNumber = sheet.getVal(XLSX.utils.encode_cell({
+                                r: jamAddress.r + 1, c: jamAddress.c}));
+                            if(nextJamNumber === 'SP'){
                                 sbErrors.warnings.SPNoPointsNoNI.events.push(
                                     `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}, Jammer: ${skaterNum}`
                                 )
@@ -735,7 +673,7 @@ let readScores = (workbook) => {
 
                 }
                 // Lost Lead
-                let lost = _.get(sheet[XLSX.utils.encode_cell(lostAddress)],'v')
+                let lost = sheet.cellVal(XLSX.utils.encode_cell(lostAddress))
                 if (lost != undefined && lost != '') {
                     isLost = true
                     sbData.periods[period].jams[jam-1].events.push(
@@ -754,7 +692,7 @@ let readScores = (workbook) => {
                     )
                 }
                 // Lead
-                let lead = _.get(sheet[XLSX.utils.encode_cell(leadAddress)], 'v')
+                let lead = sheet.getVal(XLSX.utils.encode_cell(leadAddress))
                 if (lead != undefined && lead != '') {
                     isLead = true
                     sbData.periods[period].jams[jam-1].events.push(
@@ -765,7 +703,7 @@ let readScores = (workbook) => {
                     )
                 }
                 // Call
-                let call = _.get(sheet[XLSX.utils.encode_cell(callAddress)], 'v')
+                let call = sheet.getVal(XLSX.utils.encode_cell(callAddress))
                 if (call != undefined && call != '') {
                     sbData.periods[period].jams[jam-1].events.push(
                         {
@@ -775,7 +713,7 @@ let readScores = (workbook) => {
                     )
                 }
                 // Injury
-                let inj = _.get(sheet[XLSX.utils.encode_cell(injAddress)], 'v')
+                let inj = sheet.getVal(XLSX.utils.encode_cell(injAddress))
                 if (inj != undefined && inj != '') {
                     warningData.jamsCalledInjury.push(
                         {
@@ -874,9 +812,9 @@ let readScores = (workbook) => {
     }
 }
 
-let readPenalties = (workbook) => {
+let readPenalties = () => {
 // Given a workbook, extract the data from the "Penalties" tab.
-
+    const sheet = fileManager.getSheet(fileManager.template.penalties.sheetName);
     let cells = {},
         numberAddress = {},
         penaltyAddress = {},
@@ -886,8 +824,7 @@ let readPenalties = (workbook) => {
         benchExpCodeAddress = {},
         benchExpJamAddress = {},
         foulouts = [],
-        maxPenalties = sbTemplate.penalties.maxPenalties,
-        sheet = workbook.Sheets[sbTemplate.penalties.sheetName]
+        maxPenalties = fileManager.template.penalties.maxPenalties;
 
     for(let period = 1; period < 3; period ++){
     // For each period
@@ -904,7 +841,7 @@ let readPenalties = (workbook) => {
             let team = teamList[i]
 
             // Maximum number of skaters per team
-            let maxNum = sbTemplate.teams[team].maxNum
+            let maxNum = fileManager.template.teams[team].maxNum
 
             // Read in starting positions for penalty parameters
             cells = initCells(team, pstring, tab, props)
@@ -924,7 +861,7 @@ let readPenalties = (workbook) => {
                 foAddress.r = cells.firstFO.r + (s * 2)
                 foJamAddress.r = cells.firstFOJam.r + (s*2)
 
-                let skaterNum = sheet[XLSX.utils.encode_cell(numberAddress)]
+                let skaterNum = sheet.rawVal(XLSX.utils.encode_cell(numberAddress))
 
                 if (skaterNum == undefined || skaterNum.v == ''){
                     if (period == 1 && s == 0 && i == 0) { // run this check once only
@@ -954,11 +891,8 @@ let readPenalties = (workbook) => {
                     jamAddress.c = cells.firstJam.c + p
 
                     // Read the penalty code and jam number
-                    let codeText = sheet[XLSX.utils.encode_cell(penaltyAddress)]
-                    let jamText = sheet[XLSX.utils.encode_cell(jamAddress)]
-
-                    let code = _.get(codeText,'v')
-                    let jam = _.get(jamText,'v')
+                    let code = sheet.getVal(XLSX.utils.encode_cell(penaltyAddress))
+                    let jam = sheet.getVal(XLSX.utils.encode_cell(jamAddress))
 
                     if(code == undefined || jam == undefined){
                         // Error Check - penalty code without jam # or vice versa
@@ -994,10 +928,8 @@ let readPenalties = (workbook) => {
                 }
 
                 // Check for FO or EXP, add events
-                let foCode = sheet[XLSX.utils.encode_cell(foAddress)]
-                let foJam = sheet[XLSX.utils.encode_cell(foJamAddress)]
-                let code = _.get(foCode,'v')
-                let jam = _.get(foJam,'v')
+                code = sheet.getVal(XLSX.utils.encode_cell(foAddress))
+                jam = sheet.getVal(XLSX.utils.encode_cell(foJamAddress))
 
                 if(foCode==undefined || foJam==undefined){
 
@@ -1097,8 +1029,8 @@ let readPenalties = (workbook) => {
                 benchExpCodeAddress.c = cells.benchExpCode.c + e
                 benchExpJamAddress.c = cells.benchExpJam.c + e
 
-                let benchExpCode = sheet[XLSX.utils.encode_cell(benchExpCodeAddress)]
-                let benchExpJam = sheet[XLSX.utils.encode_cell(benchExpJamAddress)]
+                let benchExpCode = sheet.rawVal(XLSX.utils.encode_cell(benchExpCodeAddress))
+                let benchExpJam = sheet.rawVal(XLSX.utils.encode_cell(benchExpJamAddress))
 
                 if (benchExpCode == undefined || benchExpJam == undefined){
                     continue
@@ -1120,17 +1052,16 @@ let readPenalties = (workbook) => {
 
 }
 
-let readLineups = (workbook) => {
+let readLineups = () => {
 // Read in the data from the lineups tab.
-
+    const sheet = fileManager.getSheet(fileManager.template.lineups.sheetName);
     let cells = {},
         jamNumberAddress = {},
         noPivotAddress = {},
         skaterAddress = {},
         skaterList = [],
-        maxJams = sbTemplate.lineups.maxJams,
-        boxCodes = sbTemplate.lineups.boxCodes,
-        sheet = workbook.Sheets[sbTemplate.lineups.sheetName],
+        maxJams = fileManager.template.lineups.maxJams,
+        boxCodes = fileManager.template.lineups.boxCodes,
         positions = {0:'jammer',1:'pivot',2:'blocker',3:'blocker',4:'blocker'},
         box = {home:[], away: []},
         tab = 'lineups',
@@ -1159,27 +1090,27 @@ let readLineups = (workbook) => {
                 noPivotAddress.r = cells.firstNoPivot.r + l
                 skaterAddress.r = cells.firstJammer.r + l
 
-                let jamText = sheet[XLSX.utils.encode_cell(jamNumberAddress)]
-                let noPivot = sheet[XLSX.utils.encode_cell(noPivotAddress)]
+                let jamText = sheet.getVal(XLSX.utils.encode_cell(jamNumberAddress))
+                let noPivot = sheet.getVal(XLSX.utils.encode_cell(noPivotAddress))
 
-                if (jamText == undefined || 
-                    jamText.v == '' ||
-                    /^\s+$/.test(jamText.v)) {continue}
+                if (jamText == undefined ||  /^\s+$/.test(jamText)) {
+                    continue
+                }
                 // If there is no jam number, go on to the next line.
                 // TODO - maybe change this to not give up if the jam # is blank?
 
-                if (anSP.test(jamText.v)) {
+                if (anSP.test(jamText)) {
                 // If this is a star pass line (SP or SP*)
                     starPass = true
 
-                    if (!mySP.test(jamText.v)) {
+                    if (!mySP.test(jamText)) {
                     // If this is an opposing team star pass only,
                     // Check for skaters that shouldn't be here, then go on.
                         let spStarSkater = false
 
                         for (let s=0; s < 5; s++){
                             skaterAddress.c = cells.firstJammer.c + (s * (boxCodes+1))
-                            let skaterText = sheet[XLSX.utils.encode_cell(skaterAddress)]
+                            let skaterText = sheet.rawVal(XLSX.utils.encode_cell(skaterAddress))
                             if (skaterText != undefined && skaterText.v != false){
                                 spStarSkater = true
                             }
@@ -1194,21 +1125,21 @@ let readLineups = (workbook) => {
                         continue
                     }
 
-                    if (_.get(noPivot,'v') == undefined){
+                    if (noPivot === undefined){
                         // Error check: Star Pass line without "No Pivot" box checked.
     
                         sbErrors.lineups.starPassNoPivot.events.push(
                             `Team: ${ucFirst(team)}, Period: ${period}, Jam: ${jam}`
                         )
                     }
-                } else if(anINJ.test(jamText.v)){
+                } else if(anINJ.test(jamText)){
                 // If this is an injury line (INJ or INJ*)
                     // TODO: add an error check to see if skaters
                     // other than the jammer were subbed.
                     continue
                 } else {
                     // Not a starpass or an injury line, update the jam number
-                    jam = jamText.v
+                    jam = jamText
                     starPass = false
                     skaterList = []
                 }
@@ -1236,7 +1167,7 @@ let readLineups = (workbook) => {
                     let position = ''
 
                     skaterAddress.c = cells.firstJammer.c + (s * (boxCodes+1))
-                    let skaterText = sheet[XLSX.utils.encode_cell(skaterAddress)]
+                    let skaterText = sheet.rawVal(XLSX.utils.encode_cell(skaterAddress))
                     
                     if (skaterText==undefined || 
                         (skaterText.v == undefined ||
@@ -1299,13 +1230,13 @@ let readLineups = (workbook) => {
                         // for each code box
 
                         skaterAddress.c = cells.firstJammer.c + (s * (boxCodes+1)) + c
-                        let codeText = sheet[XLSX.utils.encode_cell(skaterAddress)]
+                        let codeText = sheet.rawVal(XLSX.utils.encode_cell(skaterAddress))
 
                         if (codeText == undefined || /^\s*$/.exec(codeText.v)) {continue}
 
                         allCodes += codeText.v
 
-                        switch(sbVersion){
+                        switch(fileManager.sbVersion){
                         case '2017':
                         case '2018':
                             // Possible codes - /, X, S, $, I or |, 3
@@ -2009,16 +1940,6 @@ let sbErrorsToTable = () => {
     return table
 }
 
-let cellVal = (sheet, address) => {
-    // Given a worksheet and a cell address, return the value
-    // in the cell if present, and undefined if not.
-    if (sheet[address] && sheet[address].v){
-        return sheet[address].v
-    } else {
-        return undefined
-    }
-}
-
 
 let initCells = (team, period, tab, props) => {
     // Given a team, period, SB section, and list of properties,
@@ -2028,7 +1949,7 @@ let initCells = (team, period, tab, props) => {
 
     for (let i in props){
         cells[props[i]] = XLSX.utils.decode_cell(
-            sbTemplate[tab][period][team][props[i]])
+            fileManager.template[tab][period][team][props[i]])
     }
 
     return cells
@@ -2095,7 +2016,7 @@ ipc.on('save-derby-json', () => {
 
     let blob = new Blob( [ JSON.stringify(sbData, null, ' ') ], { type: 'application/json' })
 
-    download(blob, sbFilename.split('.')[0] + '.json')
+    download(blob, `${fileManager.fileForExport}.json`)
 })
 
 ipc.on('export-crg-roster', () => {
@@ -2106,7 +2027,7 @@ ipc.on('export-crg-roster', () => {
 
     const data = encode(xml.end({pretty: true}))
     const blob = new Blob( [data], { type: 'text/xml'})
-    download(blob, sbFilename.split('.')[0] + '.xml')
+    download(blob, `${fileManager.fileForExport}.xml`)
 })
 
 ipc.on('export-crg-roster-json', () => {
@@ -2115,7 +2036,7 @@ ipc.on('export-crg-roster-json', () => {
     const json = exportJsonRoster(teams)
 
     const blob = new Blob( [JSON.stringify(json, null, ' ')], { type: 'application/json' })
-    download(blob, sbFilename.split('.')[0] + '.json')
+    download(blob, `${fileManager.fileForExport}.json`)
 })
 
 let encode = (s) => {

@@ -1,0 +1,128 @@
+const request = require('request')
+const fs = require('fs')
+
+const template2018 = require('../assets/2018statsbook.json')
+const template2017 = require('../assets/2017statsbook.json')
+const template2023jrda = require('../assets/2023jrda.json')
+
+const errorManager = require('./errorManager');
+
+const versionRe = /(\d){4}/;
+const currentVersion = '2024'
+const currentJRDAVersion = '2024jrda'
+const defaultVersion = '2018'
+
+class SheetManager {
+
+    constructor(workbook, sheetName) {
+        this.sheet = workbook[sheetName];
+    }
+
+    cellVal(address) {
+        // Given a worksheet and a cell address, return the value
+        // in the cell if present, and undefined if not.
+        if (this.sheet[address] && this.sheet[address].v){
+            return this.sheet[address].v
+        } else {
+            return undefined
+        }
+    }
+
+    rawVal(addr) {
+        return this.sheet[addr];
+    }
+}
+
+class FileManager {
+    workbook = {};
+    template = {};
+    sbVersion = '';
+    sbFilename = '';
+    initialized = false;
+    mode = '';
+
+    get fileForExport() {
+        if(this.mode === 'file') {
+            return this.sbFilename.split('.')[0];
+        }
+
+        return 'export';
+     }
+
+    loadFromGoogleSheet(sheetUrl) {
+        return new Promise((resolve, reject) => {
+            this.mode = 'gsheet';
+            this.sbFilename = sheetUrl;
+            request.get(sheetUrl, { encoding: null }, (err, res, data) => {
+                if (err || res.statusCode != 200) {
+                    reject(`Unable to load file. Error: ${err}`);
+                }
+                const buf = Buffer.from(data)
+                this.workbook = XLSX.read(buf)
+                this.#setVersion();
+                this.initialized = true;
+                resolve();
+            })
+        })
+        
+    }
+
+    loadFromFileSystem(sbFile) {
+        this.mode = 'file';
+        this.sbFilename = sbFile.name
+        let data = fs.readFileSync(sbFile.path)
+        data = new Uint8Array(data)
+        this.workbook = XLSX.read(data, {type: 'array'})
+        this.#setVersion();
+        this.initialized = true;
+    }
+
+    #setVersion() {
+        let sheet = this.workbook.Sheets['Read Me']
+        let versionText = (sheet ? sheet['A3'].v : defaultVersion)
+        
+        this.sbVersion = versionRe.exec(versionText)[0];
+
+        if (versionText.toLowerCase().includes('jrda')) {
+            this.sbVersion = `${this.sbVersion}jrda`;
+        }
+
+        // Warning check: outdated statsbook version
+        // Note that this will ALSO fire if the statsbook version is NEWER.
+        if (this.sbVersion < currentVersion) {
+            errorManager.addWarning('oldStatsbookVersion', `This File: ${this.sbVersion}  Current Preferred Version: ${currentVersion}`);
+        }
+
+        // Check for NEWER statsbook version
+        if (this.sbVersion > currentVersion) {
+            if(this.sbVersion.includes('jrda')) {
+                this.sbVersion = currentJRDAVersion;
+            } else {
+                this.sbVersion = currentVersion;
+            }
+        }
+
+        switch (sbVersion) {
+            case '2024jrda':
+            case '2023jrda':
+                this.template = template2023jrda
+                break
+            case '2024':
+            case '2019':
+            case '2018':
+                this.template = template2018
+                break
+            case '2017':
+                this.template = template2017
+                break
+            default:
+                this.template = {}
+        }
+    }
+
+    getSheet(sheetName) {
+        return new SheetManager(this.workbook, sheetName);
+    }
+}
+
+module.exports = new FileManager();

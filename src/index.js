@@ -7,6 +7,15 @@ const { remote } = require('electron')
 const { Menu, MenuItem } = remote
 const mousetrap = require('mousetrap')
 var validURL = require('valid-url')
+const {
+    anSP,
+    anINJ,
+    mySP,
+    npRe,
+    ippRe,
+    jamNoRe
+
+} = require('./utils/regexes');
 
 const errorManager = require('./utils/errorManager');
 const fileManager = require('./utils/fileManager');
@@ -51,10 +60,6 @@ let sbData = {},  // derbyJSON formatted statsbook data
     sbFile = new File([''],''),
     googleSheet = ''
 const teamList = ['home','away']
-let anSP = /^sp\*?$/i
-let mySP = /^sp$/i
-let anINJ = /^inj\*?$/i
-//let myINJ = /^inj$/i Save this in case we need it later.
 
 // Check for new version
 ipc.on('do-version-check', (event, version) => {
@@ -409,9 +414,6 @@ let readScores = () => {
     let props = ['firstJamNumber','firstJammerNumber','firstLost','firstLead',
         'firstCall','firstInj','firstNp','firstTrip','lastTrip']
     let tab = 'score'
-    let npRe = /(\d)\+NP/
-    let ippRe = /(\d)\+(\d)/
-    let jamNoRe = /^(\d+|SP|SP\*|INJ|INJ\*)$/i
 
     for(let period = 1; period < 3; period ++){
     // For each period, import data

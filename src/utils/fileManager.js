@@ -1,3 +1,4 @@
+const XLSX = require('xlsx');
 const request = require('request')
 const fs = require('fs')
 
@@ -12,10 +13,32 @@ const currentVersion = '2024'
 const currentJRDAVersion = '2024jrda'
 const defaultVersion = '2018'
 
-class SheetManager {
+const teams = ['home', 'away'];
+const periods = ['1', '2'];
 
-    constructor(workbook, sheetName) {
+let initCells = (team, period, tab, props) => {
+    // Given a team, period, SB section, and list of properties,
+    // return an object of addresses for those properties.
+    // Team should be 'home' or 'away'
+    let cells = {}
+
+    for (let i in props){
+        cells[props[i]] = XLSX.utils.decode_cell(
+            fileManager.template[tab][period][team][props[i]])
+    }
+
+    return cells
+}
+
+
+class SheetManager {
+    template;
+    props;
+
+    constructor(workbook, sheetName, template, props) {
         this.sheet = workbook[sheetName];
+        this.template = template;
+        this.props = props;
     }
 
     cellVal(address) {
@@ -31,6 +54,18 @@ class SheetManager {
     rawVal(addr) {
         return this.sheet[addr];
     }
+
+    relevantCells(team, period) {
+        // Given a team, period, SB section, and list of properties,
+        // return an object of addresses for those properties.
+        // Team should be 'home' or 'away'
+        return props.reduce((prev, next) => {
+            prev[next] = XLSX.utils.decode_cell(template[period][team][props[i]]);
+            return prev;
+        }, {});
+    }
+
+
 }
 
 class FileManager {
@@ -122,6 +157,48 @@ class FileManager {
 
     getSheet(sheetName) {
         return new SheetManager(this.workbook, sheetName);
+    }
+
+    getLineupSheet() {
+        const template = this.template.lineups;
+        const props = ['firstJamNumber','firstNoPivot','firstJammer'];
+
+        const sheet = new SheetManager(this.workbook, template, props);
+
+
+        return {
+            template,
+            sheet,
+        }
+
+    }
+
+    getScoreSheet() {
+        const template = this.template.score;
+        const props = ['firstJamNumber','firstJammerNumber','firstLost','firstLead',
+        'firstCall','firstInj','firstNp','firstTrip','lastTrip'];
+
+        const sheet = new SheetManager(this.workbook, template, props);
+
+
+        return {
+            template,
+            sheet,
+        }
+    }
+
+    getPenaltiesSheet() {
+        const template = this.template.penalties;
+        const props = ['firstNumber','firstPenalty','firstJam',
+            'firstFO','firstFOJam','benchExpCode','benchExpJam'];
+
+        const sheet = new SheetManager(this.workbook, template, props);
+
+
+        return {
+            template,
+            sheet,
+        }
     }
 }
 

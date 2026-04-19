@@ -398,9 +398,9 @@ const readOfficials = () => {
 
 let readScores = () => {
 // Given a workbook, extract the information from the score tab
-    const sheet = fileManager.getSheet(fileManager.template.score.sheetName);
+    const { template, sheet } = fileManager.getScoreSheet();
     let cells = {},
-        maxJams = fileManager.template.score.maxJams,
+        maxJams = template.maxJams,
         jamAddress = {},
         jammerAddress = {},
         jamNumber = {},
@@ -411,10 +411,6 @@ let readScores = () => {
         injAddress = {},
         npAddress = {},
         skater = {}
-
-    let props = ['firstJamNumber','firstJammerNumber','firstLost','firstLead',
-        'firstCall','firstInj','firstNp','firstTrip','lastTrip']
-    let tab = 'score'
 
     for(let period = 1; period < 3; period ++){
     // For each period, import data
@@ -432,7 +428,7 @@ let readScores = () => {
             let starPass = false
 
             // Get an array of starting points for each type of info
-            cells = initCells(team,pstring, tab, props)
+            cells = sheet.relevantCells(team, pstring)
             let maxTrips = cells.lastTrip.c - cells.firstTrip.c
             jamAddress.c = cells.firstJamNumber.c
             jammerAddress.c = cells.firstJammerNumber.c
@@ -813,7 +809,7 @@ let readScores = () => {
 
 let readPenalties = () => {
 // Given a workbook, extract the data from the "Penalties" tab.
-    const sheet = fileManager.getSheet(fileManager.template.penalties.sheetName);
+    const { template, sheet } = fileManager.getPenaltiesSheet();
     let cells = {},
         numberAddress = {},
         penaltyAddress = {},
@@ -823,16 +819,12 @@ let readPenalties = () => {
         benchExpCodeAddress = {},
         benchExpJamAddress = {},
         foulouts = [],
-        maxPenalties = fileManager.template.penalties.maxPenalties;
+        maxPenalties = template.maxPenalties;
 
     for(let period = 1; period < 3; period ++){
     // For each period
 
         let pstring = period.toString()
-
-        let props = ['firstNumber','firstPenalty','firstJam',
-            'firstFO','firstFOJam','benchExpCode','benchExpJam']
-        let tab = 'penalties'
 
         for(let i in teamList){
         // For each team
@@ -843,7 +835,7 @@ let readPenalties = () => {
             let maxNum = fileManager.template.teams[team].maxNum
 
             // Read in starting positions for penalty parameters
-            cells = initCells(team, pstring, tab, props)
+            cells = sheet.relevantCells(team, period);
             numberAddress.c = cells.firstNumber.c
             penaltyAddress.c = cells.firstPenalty.c
             jamAddress.c = cells.firstJam.c
@@ -1052,18 +1044,16 @@ let readPenalties = () => {
 
 let readLineups = () => {
 // Read in the data from the lineups tab.
-    const sheet = fileManager.getSheet(fileManager.template.lineups.sheetName);
+    const { sheet, template } = fileManager.getLineupSheet();
     const box = new PenaltyBox();
     let cells = {},
         jamNumberAddress = {},
         noPivotAddress = {},
         skaterAddress = {},
         skaterList = [],
-        maxJams = fileManager.template.lineups.maxJams,
-        boxCodes = fileManager.template.lineups.boxCodes,
+        maxJams = template.maxJams,
+        boxCodes = template.boxCodes,
         positions = {0:'jammer',1:'pivot',2:'blocker',3:'blocker',4:'blocker'},
-        tab = 'lineups',
-        props = ['firstJamNumber','firstNoPivot','firstJammer']
 
     for (let period = 1; period < 3; period++){
     // For each period
@@ -1076,7 +1066,7 @@ let readLineups = () => {
             let jam = 0
             let starPass = false
 
-            cells = initCells(team, pstring, tab, props)
+            cells = sheet.relevantCells(team, period);
             jamNumberAddress.c = cells.firstJamNumber.c
             noPivotAddress.c = cells.firstNoPivot.c
             skaterAddress.c = cells.firstJammer.c
@@ -1919,21 +1909,6 @@ let sbErrorsToTable = () => {
     }
 
     return table
-}
-
-
-let initCells = (team, period, tab, props) => {
-    // Given a team, period, SB section, and list of properties,
-    // return an object of addresses for those properties.
-    // Team should be 'home' or 'away'
-    let cells = {}
-
-    for (let i in props){
-        cells[props[i]] = XLSX.utils.decode_cell(
-            fileManager.template[tab][period][team][props[i]])
-    }
-
-    return cells
 }
 
 

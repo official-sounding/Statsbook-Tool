@@ -2,7 +2,6 @@ const electron = require('electron')
 const ipc = electron.ipcRenderer
 const XLSX = require('xlsx')
 const moment = require('moment')
-const _ = require('lodash')
 const { remote } = require('electron')
 const { Menu, MenuItem } = remote
 const mousetrap = require('mousetrap')
@@ -19,6 +18,12 @@ const {
 
 const errorManager = require('./utils/errorManager');
 const fileManager = require('./utils/fileManager');
+const { 
+    instanace,
+    PenaltyBox
+} = require('./utils/dataManager');
+
+const dataManager = instance;
 
 const download = require('./tools/download')
 
@@ -54,8 +59,6 @@ let sbErrorTemplate = require('../assets/sberrors.json')
 // Globals
 let sbData = {},  // derbyJSON formatted statsbook data
     sbErrors = {},
-    penalties = {},
-    starPasses = [],
     warningData = {},
     sbFile = new File([''],''),
     googleSheet = ''
@@ -143,8 +146,7 @@ let readSbData = () => {
     // Reinitialize globals
     sbData = {}
     sbErrors = JSON.parse(JSON.stringify(sbErrorTemplate))
-    penalties = {}
-    starPasses = []
+    dataManager.reset();
     warningData = {
         badStarts: [],
         noEntries: [],
@@ -334,7 +336,6 @@ let readTeam = (team) => {
         skaterName = (skaterNameObject?.v === undefined ? '' : skaterNameObject.v)
         skaterData = {name: skaterName, number: skaterNumber.v}
         sbData.teams[team].persons.push(skaterData)
-        penalties[team + ':' + skaterNumber.v] = []
     }
 
 
@@ -485,7 +486,7 @@ let readScores = () => {
                             }
                         )
                     }
-                    starPasses.push({period: period, jam: jam})
+                    dataManager.addStarPass({ period, jam });
                 } else if (anINJ.test(jamNumber.v)) {
                     // Will we need more code here?  Stay tuned.
                     continue
@@ -803,15 +804,11 @@ let readScores = () => {
     // All score data read
 
     // Error check: Star pass marked for only one team in a jam.
-    for (var sp in starPasses){
-        if (starPasses.filter(
-            x=> x.period == starPasses[sp].period && x.jam == starPasses[sp].jam
-        ).length==1){
-            sbErrors.scores.onlyOneStarPass.events.push(
+    dataManager.unmatchedStarPasses().forEach((sp) => {
+        sbErrors.scores.onlyOneStarPass.events.push(
                 `Period: ${starPasses[sp].period} Jam: ${starPasses[sp].jam}`
-            )
-        }
-    }
+            );
+    });
 }
 
 let readPenalties = () => {
@@ -925,7 +922,7 @@ let readPenalties = () => {
                             penalty: code
                         }
                     )
-                    penalties[skater].push([jam, code])
+                    dataManager.addPenalty(skater, { jam, code });
 
                 }
 
@@ -944,8 +941,7 @@ let readPenalties = () => {
 
                     // ERROR CHECK: Seven or more penalties with NO foulout entered
                     if (foulouts.indexOf(skater) == -1
-                        && penalties[skater] != undefined
-                        && penalties[skater].length > 6
+                        && dataManager.penaltyCount(skater) > 6
                         && period == '2'){
                         sbErrors.penalties.sevenWithoutFO.events.push(
                             `Team: ${ucFirst(team)}, Skater: ${skaterNum.v}`
@@ -995,7 +991,7 @@ let readPenalties = () => {
                     }
 
                     // WARNING CHECK: Expulsion code for a skater with exactly six penalties
-                    if (penalties[skater].length == 6) {
+                    if (dataManager.penaltyCount(skater) === 6) {
                         sbErrors.warnings.sixPenaltiesPlusExpulsion.events.push(
                             `Team: ${ucFirst(team)}, Skater: ${skaterNum.v}`
                         )
@@ -1015,7 +1011,7 @@ let readPenalties = () => {
                 }
 
                 // ERROR CHECK: FO entered with fewer than seven penalties
-                if (foCode.v == 'FO' && penalties[skater].length < 7){
+                if (foCode.v == 'FO' && dataManager.penaltyCount(skater) < 7){
                     sbErrors.penalties.foUnder7.events.push(
                         `Team: ${ucFirst(team)}, Period: ${period}, Skater: ${skaterNum.v}`
                     )
@@ -1057,6 +1053,7 @@ let readPenalties = () => {
 let readLineups = () => {
 // Read in the data from the lineups tab.
     const sheet = fileManager.getSheet(fileManager.template.lineups.sheetName);
+    const box = new PenaltyBox();
     let cells = {},
         jamNumberAddress = {},
         noPivotAddress = {},
@@ -1065,7 +1062,6 @@ let readLineups = () => {
         maxJams = fileManager.template.lineups.maxJams,
         boxCodes = fileManager.template.lineups.boxCodes,
         positions = {0:'jammer',1:'pivot',2:'blocker',3:'blocker',4:'blocker'},
-        box = {home:[], away: []},
         tab = 'lineups',
         props = ['firstJamNumber','firstNoPivot','firstJammer']
 
@@ -1255,7 +1251,7 @@ let readLineups = () => {
                             case '/':
                                 // Add an "Enter Box" event, and push the skater onto the box list
                                 enterBox(pstring, jam, skater)
-                                box[team].push(skater)
+                                box.enter(team, skater);
 
                                 // ERROR CHECK: Skater enters the box during the jam
                                 // without a penalty in the current jam.
@@ -1275,7 +1271,7 @@ let readLineups = () => {
                                 //break omitted
                             case 'X':
                             case 'x':
-                                if (!box[team].includes(skater)){
+                                if (!box.has(team, skater)){
                                     // If the skater is not in the box, add an "enter box" event
                                     enterBox(pstring, jam, skater)
 
@@ -1298,11 +1294,7 @@ let readLineups = () => {
                                 }
                                 // Whether or not the skater started in the box, add an "exit box" event
                                 exitBox(pstring, jam, skater)
-
-                                // Remove the skater from the box list.
-                                if (box[team].includes(skater)){
-                                    remove(box[team],skater)
-                                }
+                                box.exit(team, skater);
                                 break
 
                             case 'S':
@@ -1311,13 +1303,10 @@ let readLineups = () => {
                                 enterBox(pstring, jam, skater, 'Sat Between Jams.')
 
                                 // ERROR CHECK: Skater starts in the box while already in the box.
-                                if (box[team].includes(skater)){
+                                if (!box.enter(team, skater)){
                                     sbErrors.lineups.startsWhileThere.events.push(
                                         `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`
                                     )
-                                } else {
-                                    // Add skater to the box list.
-                                    box[team].push(skater)
                                 }
 
                                 // ERROR CHECK: Skater starts in the box without a penalty
@@ -1341,11 +1330,10 @@ let readLineups = () => {
                                 exitBox(pstring, jam, skater)
 
                                 // ERROR CHECK: Skater starts in the box while already in the box.
-                                if (box[team].includes(skater)){
+                                if (box.exit(team, skater)){
                                     sbErrors.lineups.startsWhileThere.events.push(
                                         `Team: ${ucFirst(team)}, Period: ${pstring}, Jam: ${jam}, Skater: ${skaterText.v}`
                                     )
-                                    remove(box[team],skater)
                                 } 
 
                                 // ERROR CHECK: Skater starts in the box without a penalty
@@ -1367,7 +1355,7 @@ let readLineups = () => {
                             case 'I':
                             case '|':
                                 // no derbyJSON event, but use this branch for error checking
-                                if (!box[team].includes(skater)){
+                                if (!box.has(team, skater)){
                                     let priorFoulout = warningData.foulouts.filter(x => 
                                         (x.period == period && x.jam < jam && x.skater == skater) || 
                                         (x.period < period && x.skater == skater))
@@ -1402,9 +1390,7 @@ let readLineups = () => {
                                 })
 
                                 // remove the injured skater from the box if they were there
-                                if (box[team].includes(skater)){
-                                    remove(box[team],skater)
-                                }
+                                box.exit(team, skater);
                                 break
                             default:
                             // Handle invalid lineup codes
@@ -1430,7 +1416,7 @@ let readLineups = () => {
                             case '-':
                                 // Add an "Enter Box" event, and push the skater onto the box list
                                 enterBox(pstring, jam, skater)
-                                box[team].push(skater)
+                                box.enter(team, skater);
 
                                 // ERROR CHECK: Skater enters the box during the jam
                                 // without a penalty in the current jam.
@@ -1470,7 +1456,7 @@ let readLineups = () => {
                                     )
                                 }
 
-                                if (!box[team].includes(skater)){
+                                if (box.enter(team, skater)){
                                 // If the skater is not already in the box:
                                 
                                     // ERROR CHECK: Skater starts in the box without a penalty
@@ -1490,7 +1476,6 @@ let readLineups = () => {
 
                                     // Add a box entry, and add the skater to the box list
                                     enterBox(pstring, jam, skater, 'Sat Between Jams.')
-                                    box[team].push(skater)
                                 }
 
                                 break
@@ -1506,7 +1491,7 @@ let readLineups = () => {
                                     )
                                 }
 
-                                if (!box[team].includes(skater)){
+                                if (box.enter(team, skater)){
                                 // If the skater is not already in the box:
                                 
                                     // ERROR CHECK: Skater starts in the box without a penalty
@@ -1529,7 +1514,7 @@ let readLineups = () => {
                                     exitBox(pstring, jam, skater)
                                 } else {
                                     exitBox(pstring, jam, skater)
-                                    remove(box[team],skater)
+                                    box.exit(team, skater);
                                 }
 
                                 break
@@ -1547,10 +1532,9 @@ let readLineups = () => {
                                     jam: jam
                                 })
 
+                                box.exit(team, skater);
+
                                 // remove the injured skater from the box if they were there
-                                if (box[team].includes(skater)){
-                                    remove(box[team],skater)
-                                }
                                 break
                             default:
                                 // Handle invalid lineup codes
@@ -1569,7 +1553,7 @@ let readLineups = () => {
 
                     // ERROR CHECK: is this skater still in the box without
                     // any code on the present line?
-                    if (box[team].includes(skater) && !allCodes){
+                    if (box.has(team, skater) && !allCodes){
                         sbErrors.lineups.seatedNoCode.events.push(
                             `Team: ${
                                 ucFirst(skater.substr(0,4))
@@ -1581,7 +1565,7 @@ let readLineups = () => {
                             period: period,
                             jam: jam
                         })
-                        remove(box[team],skater)
+                        box.exit(team, skater);
                     }
                     // Done processing skater
 
@@ -1593,24 +1577,19 @@ let readLineups = () => {
                 if(fouledOutSkaters != undefined) {
                     for(let s in fouledOutSkaters) {
                         let skater = fouledOutSkaters[s].skater
-                        if(box[team].includes(skater)){
-                            remove(box[team],skater)
-                        }
+                        box.exit(team, skater);
                     }
                 }
                 let expelledSkaters = warningData.expulsions.filter(x => x.period == period && x.jam == jam && x.team == team)
                 if(expelledSkaters != undefined) {
                     for(let s in expelledSkaters) {
                         let skater = expelledSkaters[s].skater
-                        if(box[team].includes(skater)){
-                            remove(box[team],skater)
-                        }
+                        box.exit(team, skater);
                     }
                 }
 
                 // Error Check: Skater still in the box not listed on lineup tab at all
-                for (let s in box[team]){
-                    let skater = box[team][s]
+                box.skaters(team).forEach((skater) => {
                     if(!skaterList.includes(skater)){
                         sbErrors.lineups.seatedNotLinedUp.events.push(
                             `Team: ${
@@ -1624,7 +1603,7 @@ let readLineups = () => {
                             jam: jam
                         })
                     }
-                }
+                });
 
                 // ERROR CHECK: Skaters with penalties in this jam not listed on the lineup tab
                 for (let p in thisJamPenalties){
@@ -1957,15 +1936,6 @@ let initCells = (team, period, tab, props) => {
     return cells
 }
 
-let remove = (array, element) => {
-    // Lifted from https://blog.mariusschulz.com/
-    // Removes an element from an arry
-    const index = array.indexOf(element)
-
-    if (index !== -1) {
-        array.splice(index, 1)
-    }
-}
 
 let enterBox = (pstring, jam, skater, note) => {
 // Add an 'enter box' event
